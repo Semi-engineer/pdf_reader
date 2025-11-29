@@ -1,0 +1,13 @@
+{
+  "name": "pdf-reader",
+  "version": "1.0.0",
+  "description": "A modern PDF viewer built with Qt6 and Poppler",
+  "dependencies": [
+    "qt6-base",
+    {
+      "name": "poppler",
+      "features": ["qt6"]
+    }
+  ],
+  "builtin-baseline": "latest"
+}
