@@ -18,6 +18,7 @@ class PDFLabelWithOverlay(QLabel):
         self.search_results = []
         self.annotations = []
         self.zoom = 100
+        self.doc_path = None  # Will be set by parent
         
         # Drawing state
         self.drawing_mode = None  # None, 'highlight', 'rectangle', 'pen'
@@ -27,6 +28,8 @@ class PDFLabelWithOverlay(QLabel):
         self.current_point = None
         self.drawing_path = QPainterPath()
         self.temp_drawings = []  # Temporary drawings before saving
+        self._temp_selection_rect = None  # Temporary selection for feedback
+        self._temp_selection_color = None
         
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet("background-color: white; border: 1px solid #ccc;")
@@ -48,13 +51,15 @@ class PDFLabelWithOverlay(QLabel):
         self.zoom = zoom
     
     def set_drawing_mode(self, mode, color=None):
-        """Set drawing mode: None, 'highlight', 'rectangle', 'pen', 'erase'"""
+        """Set drawing mode: None, 'highlight', 'rectangle', 'pen', 'erase', 'select_text'"""
         self.drawing_mode = mode
         if color:
             self.drawing_color = color
         
         if mode == 'erase':
             self.setCursor(Qt.PointingHandCursor)
+        elif mode == 'select_text':
+            self.setCursor(Qt.IBeamCursor)
         elif mode:
             self.setCursor(Qt.CrossCursor)
         else:
@@ -130,12 +135,25 @@ class PDFLabelWithOverlay(QLabel):
                 painter.setBrush(Qt.NoBrush)
                 rect = QRectF(self.start_point, self.current_point).normalized()
                 painter.drawRect(rect)
+            elif self.drawing_mode == 'select_text':
+                # Show selection rectangle
+                pen = QPen(QColor(0, 120, 215), 2, Qt.DashLine)
+                painter.setPen(pen)
+                painter.setBrush(QBrush(QColor(0, 120, 215, 30)))
+                rect = QRectF(self.start_point, self.current_point).normalized()
+                painter.drawRect(rect)
             elif self.drawing_mode == 'pen':
                 pen = QPen(self.drawing_color, 3)
                 pen.setCapStyle(Qt.RoundCap)
                 pen.setJoinStyle(Qt.RoundJoin)
                 painter.setPen(pen)
                 painter.drawPath(self.drawing_path)
+        
+        # Draw temporary selection feedback (after text copy)
+        if self._temp_selection_rect:
+            painter.setPen(QPen(QColor(0, 255, 0), 2))
+            painter.setBrush(QBrush(self._temp_selection_color))
+            painter.drawRect(self._temp_selection_rect)
         
         painter.end()
     
@@ -191,6 +209,12 @@ class PDFLabelWithOverlay(QLabel):
                             self.drawing_color,
                             self.drawing_mode
                         )
+                elif self.drawing_mode == 'select_text':
+                    # Select text mode
+                    widget_rect = QRectF(self.start_point, self.current_point).normalized()
+                    
+                    if widget_rect.width() > 5 and widget_rect.height() > 5:
+                        self._extract_text_from_rect(widget_rect)
                 elif self.drawing_mode == 'pen':
                     # For pen, save the path
                     if not self.drawing_path.isEmpty():
@@ -243,6 +267,68 @@ class PDFLabelWithOverlay(QLabel):
         # Widget has fixed size = pixmap size, so no offset needed
         # Just return the position as-is
         return widget_pos
+    
+    def _extract_text_from_rect(self, widget_rect):
+        """Extract text from the selected rectangle"""
+        try:
+            import fitz
+            from PySide6.QtWidgets import QApplication
+            
+            if not self.doc_path:
+                print("Document path not set")
+                return
+            
+            # Open document
+            doc = fitz.open(self.doc_path)
+            page = doc[self.page_num]
+            
+            # Convert widget rect to PDF coordinates
+            pdf_rect = self._convert_widget_rect_to_pdf(widget_rect)
+            
+            # Create fitz.Rect
+            fitz_rect = fitz.Rect(
+                pdf_rect.x(),
+                pdf_rect.y(),
+                pdf_rect.x() + pdf_rect.width(),
+                pdf_rect.y() + pdf_rect.height()
+            )
+            
+            # Extract text
+            text = page.get_textbox(fitz_rect)
+            
+            doc.close()
+            
+            if text.strip():
+                # Copy to clipboard
+                clipboard = QApplication.clipboard()
+                clipboard.setText(text)
+                
+                # Show notification (emit signal to parent)
+                print(f"Copied {len(text)} characters: {text[:50]}...")
+                
+                # Show temporary highlight
+                self._show_text_copied_feedback(widget_rect)
+            else:
+                print("No text found in selection")
+                
+        except Exception as e:
+            print(f"Error extracting text: {e}")
+    
+    def _show_text_copied_feedback(self, widget_rect):
+        """Show temporary feedback for copied text"""
+        # Store the selection rect temporarily
+        self._temp_selection_rect = widget_rect
+        self._temp_selection_color = QColor(0, 255, 0, 50)  # Green
+        self.update()
+        
+        # Clear after 1 second
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(1000, self._clear_temp_selection)
+    
+    def _clear_temp_selection(self):
+        """Clear temporary selection highlight"""
+        self._temp_selection_rect = None
+        self.update()
     
     def _erase_annotation_at(self, pos):
         """Erase annotation at the given position"""

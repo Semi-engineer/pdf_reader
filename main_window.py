@@ -192,6 +192,17 @@ class MainWindow(QMainWindow):
         toolbar.addAction(erase_action)
         self.erase_action = erase_action
         
+        toolbar.addSeparator()
+        
+        # Text selection
+        select_text_action = QAction("📝 Select Text", self)
+        select_text_action.setCheckable(True)
+        select_text_action.triggered.connect(lambda: self.set_drawing_mode('select_text'))
+        toolbar.addAction(select_text_action)
+        self.select_text_action = select_text_action
+        
+        toolbar.addSeparator()
+        
         clear_mode_action = QAction("⊗ Clear Mode", self)
         clear_mode_action.triggered.connect(self.clear_drawing_mode)
         toolbar.addAction(clear_mode_action)
@@ -479,6 +490,7 @@ class MainWindow(QMainWindow):
         # Create PDFLabelWithOverlay for search and annotation support
         widget = PDFLabelWithOverlay(page_num)
         widget.set_zoom(self.zoom_level)
+        widget.doc_path = self.doc_path  # Set document path for text extraction
         
         # Connect annotation signal
         widget.annotation_added.connect(self._on_annotation_added)
@@ -837,12 +849,13 @@ class MainWindow(QMainWindow):
             self.fullscreen_action.setChecked(True)
     
     def set_drawing_mode(self, mode):
-        """Set drawing mode: 'highlight', 'rectangle', 'pen', 'erase'"""
+        """Set drawing mode: 'highlight', 'rectangle', 'pen', 'erase', 'select_text'"""
         # Uncheck all drawing actions
         self.highlight_action.setChecked(False)
         self.rectangle_action.setChecked(False)
         self.pen_action.setChecked(False)
         self.erase_action.setChecked(False)
+        self.select_text_action.setChecked(False)
         
         # Set color based on mode
         if mode == 'highlight':
@@ -861,6 +874,10 @@ class MainWindow(QMainWindow):
             self.erase_action.setChecked(True)
             color = None
             self.status_label.setText("Erase mode: Click on annotation to delete")
+        elif mode == 'select_text':
+            self.select_text_action.setChecked(True)
+            color = None
+            self.status_label.setText("Select Text mode: Click and drag to select text")
         else:
             color = None
             self.status_label.setText("Ready")
@@ -875,6 +892,7 @@ class MainWindow(QMainWindow):
         self.rectangle_action.setChecked(False)
         self.pen_action.setChecked(False)
         self.erase_action.setChecked(False)
+        self.select_text_action.setChecked(False)
         
         for widget in self.page_widgets.values():
             widget.set_drawing_mode(None)
