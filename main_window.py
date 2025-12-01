@@ -5,20 +5,17 @@ Main Window - Primary application window with all UI components
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                                QToolBar, QStatusBar, QScrollArea, QListWidget,
                                QListWidgetItem, QDockWidget, QFileDialog, QLineEdit,
-                               QPushButton, QLabel, QMessageBox, QMenu, QApplication,
-                               QSpinBox, QComboBox, QDialog, QDialogButtonBox)
-from PySide6.QtCore import Qt, Signal, QTimer, QSize
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QColor, QPainter
+                               QPushButton, QLabel, QMessageBox, QSpinBox, QComboBox)
+from PySide6.QtCore import Qt, QTimer, QSize
+from PySide6.QtGui import QAction, QKeySequence, QPixmap, QIcon
 import fitz
 import os
-from pathlib import Path
 
 from render_worker import RenderWorker
 from page_cache import PageCache
 from thumbnail_manager import ThumbnailManager
 from search_manager import SearchManager
-from annotation_manager import AnnotationManager
-from pdf_page_widget import PDFPageWidget
+from pdf_label_with_overlay import PDFLabelWithOverlay
 
 
 class MainWindow(QMainWindow):
@@ -42,7 +39,6 @@ class MainWindow(QMainWindow):
         self.page_cache = PageCache(max_size=30)
         self.thumbnail_manager = ThumbnailManager()
         self.search_manager = SearchManager()
-        self.annotation_manager = AnnotationManager()
         
         # Page widgets
         self.page_widgets = {}
@@ -50,12 +46,8 @@ class MainWindow(QMainWindow):
         # Setup UI
         self._setup_ui()
         self._setup_connections()
-        self._apply_theme()
         
         # Restore settings
-        if self.settings.get('dark_mode'):
-            self.dark_mode = True
-            self._apply_theme()
         if self.settings.get('sidebar_visible', True):
             self.sidebar_dock.setVisible(True)
     
@@ -94,9 +86,7 @@ class MainWindow(QMainWindow):
         # Setup statusbar
         self._setup_statusbar()
         
-        # Setup context menu
-        self.scroll_area.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.scroll_area.customContextMenuRequested.connect(self._show_context_menu)
+
     
     def _setup_toolbar(self):
         """Setup toolbar with actions"""
@@ -110,10 +100,7 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.open_file_dialog)
         toolbar.addAction(open_action)
         
-        save_action = QAction("Save Copy", self)
-        save_action.setShortcut(QKeySequence.Save)
-        save_action.triggered.connect(self.save_copy)
-        toolbar.addAction(save_action)
+
         
         toolbar.addSeparator()
         
@@ -156,16 +143,7 @@ class MainWindow(QMainWindow):
         
         toolbar.addSeparator()
         
-        # View modes
-        two_page_action = QAction("Two Pages", self)
-        two_page_action.setCheckable(True)
-        two_page_action.triggered.connect(self.toggle_two_page_mode)
-        toolbar.addAction(two_page_action)
-        self.two_page_action = two_page_action
-        
-        rotate_action = QAction("Rotate", self)
-        rotate_action.triggered.connect(self.rotate_page)
-        toolbar.addAction(rotate_action)
+
         
         toolbar.addSeparator()
         
@@ -186,29 +164,6 @@ class MainWindow(QMainWindow):
         search_next_action.setShortcut(QKeySequence.FindNext)
         search_next_action.triggered.connect(self.search_next)
         toolbar.addAction(search_next_action)
-        
-        toolbar.addSeparator()
-        
-        # Dark mode
-        dark_mode_action = QAction("Dark Mode", self)
-        dark_mode_action.setCheckable(True)
-        dark_mode_action.triggered.connect(self.toggle_dark_mode)
-        toolbar.addAction(dark_mode_action)
-        self.dark_mode_action = dark_mode_action
-        
-        # Annotation tools
-        toolbar.addSeparator()
-        highlight_action = QAction("Highlight", self)
-        highlight_action.setCheckable(True)
-        highlight_action.triggered.connect(lambda: self.set_annotation_mode('highlight'))
-        toolbar.addAction(highlight_action)
-        self.highlight_action = highlight_action
-        
-        rect_action = QAction("Rectangle", self)
-        rect_action.setCheckable(True)
-        rect_action.triggered.connect(lambda: self.set_annotation_mode('rectangle'))
-        toolbar.addAction(rect_action)
-        self.rect_action = rect_action
     
     def _setup_sidebar(self):
         """Setup thumbnail sidebar"""
@@ -267,31 +222,11 @@ class MainWindow(QMainWindow):
         self.render_worker.render_error.connect(self._on_render_error)
         self.thumbnail_manager.thumbnail_ready.connect(self._on_thumbnail_ready)
         self.search_manager.search_completed.connect(self._on_search_completed)
-        self.annotation_manager.annotations_changed.connect(self._on_annotations_changed)
         
         # Scroll area viewport change
         self.scroll_area.verticalScrollBar().valueChanged.connect(self._on_scroll)
     
-    def _apply_theme(self):
-        """Apply dark/light theme"""
-        if self.dark_mode:
-            self.setStyleSheet("""
-                QMainWindow, QWidget { background-color: #2b2b2b; color: #ffffff; }
-                QScrollArea { background-color: #1e1e1e; }
-                QToolBar { background-color: #3c3c3c; border: none; }
-                QStatusBar { background-color: #3c3c3c; color: #ffffff; }
-                QLineEdit, QSpinBox, QComboBox { 
-                    background-color: #3c3c3c; 
-                    color: #ffffff; 
-                    border: 1px solid #555555;
-                    padding: 4px;
-                }
-                QListWidget { background-color: #2b2b2b; color: #ffffff; }
-                QDockWidget { background-color: #2b2b2b; color: #ffffff; }
-            """)
-        else:
-            self.setStyleSheet("")
-    
+
     def open_file_dialog(self):
         """Open file dialog to select PDF"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -460,12 +395,9 @@ class MainWindow(QMainWindow):
         if page_num in self.page_widgets and not self.two_page_mode:
             return
         
-        # Create simple QLabel for now - simpler and more reliable
-        from PySide6.QtWidgets import QLabel
-        widget = QLabel()
-        widget.setAlignment(Qt.AlignCenter)
-        widget.setStyleSheet("background-color: white; border: 1px solid #ccc;")
-        widget.setScaledContents(False)
+        # Create PDFLabelWithOverlay for search and annotation support
+        widget = PDFLabelWithOverlay(page_num)
+        widget.set_zoom(self.zoom_level)
         
         # Set initial size based on PDF page dimensions
         try:
@@ -638,6 +570,10 @@ class MainWindow(QMainWindow):
         if index >= 0:
             self.zoom_combo.setCurrentIndex(index)
         
+        # Update zoom on all widgets
+        for widget in self.page_widgets.values():
+            widget.set_zoom(zoom)
+        
         # Clear cache and re-render
         self.page_cache.clear()
         self._render_visible_pages()
@@ -684,46 +620,8 @@ class MainWindow(QMainWindow):
         
         self.set_zoom(min(zoom_w, zoom_h))
     
-    def toggle_two_page_mode(self):
-        """Toggle two-page view"""
-        self.two_page_mode = not self.two_page_mode
-        self.two_page_action.setChecked(self.two_page_mode)
-        
-        # Clear and re-render
-        while self.scroll_layout.count():
-            item = self.scroll_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-            elif item.layout():
-                # Remove layout
-                while item.layout().count():
-                    sub_item = item.layout().takeAt(0)
-                    if sub_item.widget():
-                        sub_item.widget().deleteLater()
-        
-        self.page_widgets.clear()
-        if hasattr(self, 'two_page_layout'):
-            delattr(self, 'two_page_layout')
-        
-        self._render_visible_pages()
-    
-    def rotate_page(self):
-        """Rotate current page"""
-        if not self.doc:
-            return
-        
-        # Rotate current page by 90 degrees
-        current_rotation = self.page_rotations.get(self.current_page, self.rotation)
-        new_rotation = (current_rotation + 90) % 360
-        self.page_rotations[self.current_page] = new_rotation
-        
-        # Clear cache for this page and re-render
-        for key in list(self.page_cache.cache.keys()):
-            if key[0] == self.current_page:
-                self.page_cache.remove(key)
-        
-        self._render_visible_pages()
-    
+
+
     def search_text(self):
         """Search for text"""
         query = self.search_input.text()
@@ -741,14 +639,17 @@ class MainWindow(QMainWindow):
             first_result = results[0]
             self.goto_page(first_result['page'])
             
-            # Update page widgets with search results (only if they support it)
-            for page_num in self.page_widgets:
-                widget = self.page_widgets[page_num]
-                if hasattr(widget, 'set_search_results'):
+            # Update ALL page widgets with search results
+            for page_num in range(len(self.doc)):
+                if page_num in self.page_widgets:
+                    widget = self.page_widgets[page_num]
                     page_results = self.search_manager.get_results_for_page(page_num)
                     widget.set_search_results(page_results)
         else:
             self.status_label.setText("No results found")
+            # Clear search highlights
+            for widget in self.page_widgets.values():
+                widget.set_search_results([])
     
     def search_next(self):
         """Go to next search result"""
@@ -756,122 +657,14 @@ class MainWindow(QMainWindow):
         if result:
             self.goto_page(result['page'])
     
-    def toggle_dark_mode(self):
-        """Toggle dark mode"""
-        self.dark_mode = not self.dark_mode
-        self.dark_mode_action.setChecked(self.dark_mode)
-        self._apply_theme()
-    
-    def set_annotation_mode(self, mode):
-        """Set annotation mode"""
-        # Uncheck other annotation actions
-        if mode == 'highlight':
-            self.highlight_action.setChecked(True)
-            self.rect_action.setChecked(False)
-            color = QColor(255, 255, 0, 100)
-        elif mode == 'rectangle':
-            self.highlight_action.setChecked(False)
-            self.rect_action.setChecked(True)
-            color = QColor(255, 0, 0, 200)
-        else:
-            self.highlight_action.setChecked(False)
-            self.rect_action.setChecked(False)
-            color = None
-        
-        # Set mode on all page widgets (only if they support it)
-        for widget in self.page_widgets.values():
-            if hasattr(widget, 'set_annotation_mode'):
-                widget.set_annotation_mode(mode, color)
-    
-    def _on_text_selected(self, text):
-        """Handle text selection"""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(text)
-        self.status_label.setText("Text copied to clipboard")
-    
-    def _on_annotation_added(self, page_num, rect, color, annotation_type):
-        """Handle annotation added"""
-        self.annotation_manager.add_annotation(page_num, rect, color, annotation_type)
-        self.status_label.setText(f"Annotation added to page {page_num + 1}")
-    
-    def _on_annotations_changed(self):
-        """Handle annotations changed"""
-        # Update all page widgets (only if they support it)
-        for page_num, widget in self.page_widgets.items():
-            if hasattr(widget, 'set_annotations'):
-                annotations = self.annotation_manager.get_annotations_for_page(page_num)
-                widget.set_annotations(annotations)
-    
-    def save_copy(self):
-        """Save a copy of PDF with annotations"""
-        if not self.doc_path:
-            return
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save PDF Copy",
-            "",
-            "PDF Files (*.pdf)"
-        )
-        
-        if file_path:
-            if self.annotation_manager.annotations:
-                # Save with annotations
-                success = self.annotation_manager.save_to_pdf(self.doc_path, file_path)
-                if success:
-                    QMessageBox.information(self, "Success", "PDF saved with annotations")
-                else:
-                    QMessageBox.warning(self, "Error", "Failed to save annotations")
-            else:
-                # Just copy the file
-                import shutil
-                shutil.copy(self.doc_path, file_path)
-                QMessageBox.information(self, "Success", "PDF copied")
-    
-    def _show_context_menu(self, pos):
-        """Show context menu"""
-        menu = QMenu(self)
-        
-        copy_action = menu.addAction("Copy Text")
-        copy_action.triggered.connect(lambda: None)  # Handled by widget
-        
-        menu.addSeparator()
-        
-        highlight_action = menu.addAction("Add Highlight")
-        highlight_action.triggered.connect(lambda: self.set_annotation_mode('highlight'))
-        
-        rect_action = menu.addAction("Add Rectangle")
-        rect_action.triggered.connect(lambda: self.set_annotation_mode('rectangle'))
-        
-        menu.addSeparator()
-        
-        export_action = menu.addAction("Export Page as Image")
-        export_action.triggered.connect(self.export_page_as_image)
-        
-        menu.exec(self.scroll_area.mapToGlobal(pos))
-    
-    def export_page_as_image(self):
-        """Export current page as image"""
-        if not self.doc:
-            return
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Page as Image",
-            f"page_{self.current_page + 1}.png",
-            "PNG Files (*.png);;JPEG Files (*.jpg)"
-        )
-        
-        if file_path:
-            try:
-                page = self.doc[self.current_page]
-                mat = fitz.Matrix(2.0, 2.0)  # High resolution
-                pix = page.get_pixmap(matrix=mat)
-                pix.save(file_path)
-                QMessageBox.information(self, "Success", "Page exported")
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"Export failed: {str(e)}")
-    
+
+
+
+
+
+
+
+
     def _update_page_label(self):
         """Update page label in status bar"""
         if self.doc:
