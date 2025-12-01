@@ -14,6 +14,47 @@ class PDFPageWidget(QWidget):
     text_selected = Signal(str)  # Emitted when text is selected
     annotation_added = Signal(int, QRectF, QColor, str)  # page, rect, color, type
     
+    def _normalize_thai_text(self, text):
+        """Normalize Thai text to fix combining character issues"""
+        import unicodedata
+        import re
+        
+        # Fix specific Thai sara am (ำ) issues
+        # Some PDFs incorrectly encode sara am with weird characters in between
+        
+        # Define Thai characters
+        sara_am = '\u0e33'
+        nikhahit = '\u0e4d'
+        sara_aa = '\u0e32'
+        
+        # Pattern 1: Remove Latin E with ogonek (Ę) and spaces before sara am
+        # This fixes "บ Ę ำ" -> "บำ"
+        text = re.sub(f'([ก-ฮ])\\s*\\u0118\\s*({sara_am})', r'\1\2', text)
+        
+        # Pattern 2: Remove any non-Thai characters between Thai consonant and sara am
+        text = re.sub(f'([ก-ฮ])\\s*[^\\u0e00-\\u0e7f\\s]+\\s*({sara_am})', r'\1\2', text)
+        
+        # Pattern 3: Fix separated sara am (nikhahit + sara aa = sara am)
+        text = re.sub(f'([ก-ฮ]){nikhahit}\\s*{sara_aa}', f'\\1{sara_am}', text)
+        
+        # Pattern 4: Remove standalone weird characters between Thai text
+        text = re.sub('([ก-๙])\\s+[^\\u0e00-\\u0e7f\\s\\w]+\\s+([ก-๙])', r'\1\2', text)
+        
+        # Use NFC normalization to combine characters properly
+        text = unicodedata.normalize('NFC', text)
+        
+        # Additional cleanup for Thai characters
+        # Remove zero-width spaces and other invisible characters
+        text = text.replace('\u200b', '')  # Zero-width space
+        text = text.replace('\ufeff', '')  # Zero-width no-break space
+        text = text.replace('\u0336', '')  # Combining long stroke overlay
+        text = text.replace('\u0118', '')  # Latin E with ogonek (Ę)
+        
+        # Clean up multiple spaces
+        text = re.sub('\\s+', ' ', text)
+        
+        return text
+    
     def __init__(self, page_num, parent=None):
         super().__init__(parent)
         self.page_num = page_num
@@ -240,6 +281,8 @@ class PDFPageWidget(QWidget):
             text = page.get_textbox(pdf_rect)
             
             if text.strip():
+                # Normalize Thai text to fix combining characters
+                text = self._normalize_thai_text(text)
                 self.text_selected.emit(text)
                 
                 # Get word rectangles for visual feedback
