@@ -2,9 +2,10 @@
 PDF Label with Overlay - QLabel with search highlights and annotations
 """
 
-from PySide6.QtWidgets import QLabel
+import math
+from PySide6.QtWidgets import QLabel, QInputDialog
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath, QPolygonF
 
 
 class PDFLabelWithOverlay(QLabel):
@@ -99,6 +100,37 @@ class PDFLabelWithOverlay(QLabel):
                 painter.setBrush(Qt.NoBrush)
                 rect = self._convert_pdf_rect_to_widget(annotation.rect)
                 painter.drawRect(rect)
+            elif annotation.annotation_type == 'line':
+                pen = QPen(annotation.color, 2)
+                painter.setPen(pen)
+                rect = self._convert_pdf_rect_to_widget(annotation.rect)
+                painter.drawLine(rect.topLeft(), rect.bottomRight())
+            elif annotation.annotation_type == 'arrow':
+                pen = QPen(annotation.color, 2)
+                painter.setPen(pen)
+                painter.setBrush(QBrush(annotation.color))
+                rect = self._convert_pdf_rect_to_widget(annotation.rect)
+                start = rect.topLeft()
+                end = rect.bottomRight()
+                painter.drawLine(start, end)
+                self._draw_arrowhead(painter, start, end)
+            elif annotation.annotation_type == 'circle':
+                pen = QPen(annotation.color, 2)
+                painter.setPen(pen)
+                painter.setBrush(Qt.NoBrush)
+                rect = self._convert_pdf_rect_to_widget(annotation.rect)
+                painter.drawEllipse(rect)
+            elif annotation.annotation_type.startswith('text:'):
+                # Extract text from type field
+                text = annotation.annotation_type[5:]  # Remove 'text:' prefix
+                pen = QPen(annotation.color)
+                painter.setPen(pen)
+                from PySide6.QtGui import QFont
+                font = QFont()
+                font.setPointSize(12)
+                painter.setFont(font)
+                rect = self._convert_pdf_rect_to_widget(annotation.rect)
+                painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop, text)
             elif annotation.annotation_type == 'pen':
                 pen = QPen(annotation.color, 3)
                 pen.setCapStyle(Qt.RoundCap)
@@ -135,6 +167,24 @@ class PDFLabelWithOverlay(QLabel):
                 painter.setBrush(Qt.NoBrush)
                 rect = QRectF(self.start_point, self.current_point).normalized()
                 painter.drawRect(rect)
+            elif self.drawing_mode == 'line':
+                pen = QPen(self.drawing_color, 2)
+                painter.setPen(pen)
+                painter.drawLine(self.start_point, self.current_point)
+            elif self.drawing_mode == 'arrow':
+                pen = QPen(self.drawing_color, 2)
+                painter.setPen(pen)
+                painter.setBrush(QBrush(self.drawing_color))
+                # Draw line
+                painter.drawLine(self.start_point, self.current_point)
+                # Draw arrowhead
+                self._draw_arrowhead(painter, self.start_point, self.current_point)
+            elif self.drawing_mode == 'circle':
+                pen = QPen(self.drawing_color, 2)
+                painter.setPen(pen)
+                painter.setBrush(Qt.NoBrush)
+                rect = QRectF(self.start_point, self.current_point).normalized()
+                painter.drawEllipse(rect)
             elif self.drawing_mode == 'select_text':
                 # Show selection rectangle
                 pen = QPen(QColor(0, 120, 215), 2, Qt.DashLine)
@@ -164,6 +214,9 @@ class PDFLabelWithOverlay(QLabel):
                 # Erase mode - find and remove annotation at click position
                 click_pos = self._get_pixmap_position(event.position())
                 self._erase_annotation_at(click_pos)
+            elif self.drawing_mode == 'text':
+                # Text mode - handle in mouseReleaseEvent
+                pass
             else:
                 # Drawing mode
                 self.is_drawing = True
@@ -190,48 +243,67 @@ class PDFLabelWithOverlay(QLabel):
     
     def mouseReleaseEvent(self, event):
         """Handle mouse release to finish drawing"""
-        if event.button() == Qt.LeftButton and self.is_drawing:
-            self.is_drawing = False
+        if event.button() == Qt.LeftButton:
+            # Handle text mode separately (single click)
+            if self.drawing_mode == 'text' and not self.is_drawing:
+                click_pos = self._get_pixmap_position(event.position())
+                text, ok = QInputDialog.getText(self, 'Add Text', 'Enter text:')
+                if ok and text:
+                    # Create a small rect at click position for text
+                    widget_rect = QRectF(click_pos.x(), click_pos.y(), 100, 20)
+                    pdf_rect = self._convert_widget_rect_to_pdf(widget_rect)
+                    
+                    # Store text in annotation (we'll need to modify annotation_manager)
+                    self.annotation_added.emit(
+                        self.page_num,
+                        pdf_rect,
+                        self.drawing_color,
+                        f'text:{text}'  # Store text in type field
+                    )
+                return
             
-            if self.start_point and self.current_point:
-                # Create annotation
-                if self.drawing_mode in ['highlight', 'rectangle']:
-                    # Widget coordinates
-                    widget_rect = QRectF(self.start_point, self.current_point).normalized()
-                    
-                    if widget_rect.width() > 5 and widget_rect.height() > 5:
-                        # Convert to PDF coordinates for storage
-                        pdf_rect = self._convert_widget_rect_to_pdf(widget_rect)
+            if self.is_drawing:
+                self.is_drawing = False
+                
+                if self.start_point and self.current_point:
+                    # Create annotation
+                    if self.drawing_mode in ['highlight', 'rectangle', 'line', 'arrow', 'circle']:
+                        # Widget coordinates
+                        widget_rect = QRectF(self.start_point, self.current_point).normalized()
                         
-                        self.annotation_added.emit(
-                            self.page_num,
-                            pdf_rect,  # Store as PDF coordinates
-                            self.drawing_color,
-                            self.drawing_mode
-                        )
-                elif self.drawing_mode == 'select_text':
-                    # Select text mode
-                    widget_rect = QRectF(self.start_point, self.current_point).normalized()
-                    
-                    if widget_rect.width() > 5 and widget_rect.height() > 5:
-                        self._extract_text_from_rect(widget_rect)
-                elif self.drawing_mode == 'pen':
-                    # For pen, save the path
-                    if not self.drawing_path.isEmpty():
-                        # Create a custom annotation with path
-                        from annotation_manager import Annotation
-                        annotation = Annotation(
-                            self.page_num,
-                            self.drawing_path.boundingRect(),
-                            self.drawing_color,
-                            'pen'
-                        )
-                        annotation.path = self.drawing_path
-                        annotation.original_zoom = self.zoom  # Store zoom level
+                        if widget_rect.width() > 5 or widget_rect.height() > 5:
+                            # Convert to PDF coordinates for storage
+                            pdf_rect = self._convert_widget_rect_to_pdf(widget_rect)
+                            
+                            self.annotation_added.emit(
+                                self.page_num,
+                                pdf_rect,  # Store as PDF coordinates
+                                self.drawing_color,
+                                self.drawing_mode
+                            )
+                    elif self.drawing_mode == 'select_text':
+                        # Select text mode
+                        widget_rect = QRectF(self.start_point, self.current_point).normalized()
                         
-                        # Add directly to widget's annotations
-                        self.annotations.append(annotation)
-                        self.update()
+                        if widget_rect.width() > 5 and widget_rect.height() > 5:
+                            self._extract_text_from_rect(widget_rect)
+                    elif self.drawing_mode == 'pen':
+                        # For pen, save the path
+                        if not self.drawing_path.isEmpty():
+                            # Create a custom annotation with path
+                            from annotation_manager import Annotation
+                            annotation = Annotation(
+                                self.page_num,
+                                self.drawing_path.boundingRect(),
+                                self.drawing_color,
+                                'pen'
+                            )
+                            annotation.path = self.drawing_path
+                            annotation.original_zoom = self.zoom  # Store zoom level
+                            
+                            # Add directly to widget's annotations
+                            self.annotations.append(annotation)
+                            self.update()
             
             self.start_point = None
             self.current_point = None
@@ -334,9 +406,19 @@ class PDFLabelWithOverlay(QLabel):
         """Erase annotation at the given position"""
         # Find annotation that contains this point
         for i, annotation in enumerate(self.annotations):
-            if annotation.annotation_type in ['highlight', 'rectangle']:
-                # Check if point is inside rectangle
+            # Get annotation type (handle text: prefix)
+            ann_type = annotation.annotation_type
+            if ann_type.startswith('text:'):
+                ann_type = 'text'
+            
+            if ann_type in ['highlight', 'rectangle', 'line', 'arrow', 'circle', 'text']:
+                # Check if point is inside rectangle or near line
                 rect = self._convert_pdf_rect_to_widget(annotation.rect)
+                
+                # Expand rect slightly for easier clicking on lines
+                if ann_type in ['line', 'arrow']:
+                    rect = rect.adjusted(-5, -5, 5, 5)
+                
                 if rect.contains(pos):
                     # Remove this annotation
                     removed = self.annotations.pop(i)
@@ -344,7 +426,7 @@ class PDFLabelWithOverlay(QLabel):
                     
                     # Emit signal to remove from manager
                     # We need to add this signal
-                    print(f"Erased annotation at page {self.page_num}")
+                    print(f"Erased {ann_type} annotation at page {self.page_num}")
                     return
             elif annotation.annotation_type == 'pen':
                 # Check if point is near the path
@@ -378,3 +460,28 @@ class PDFLabelWithOverlay(QLabel):
             widget_rect.width() / scale,
             widget_rect.height() / scale
         )
+    
+    def _draw_arrowhead(self, painter, start, end):
+        """Draw arrowhead at the end of a line"""
+        # Calculate angle
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        angle = math.atan2(dy, dx)
+        
+        # Arrowhead size
+        arrow_size = 15
+        arrow_angle = math.pi / 6  # 30 degrees
+        
+        # Calculate arrowhead points
+        point1 = QPointF(
+            end.x() - arrow_size * math.cos(angle - arrow_angle),
+            end.y() - arrow_size * math.sin(angle - arrow_angle)
+        )
+        point2 = QPointF(
+            end.x() - arrow_size * math.cos(angle + arrow_angle),
+            end.y() - arrow_size * math.sin(angle + arrow_angle)
+        )
+        
+        # Draw arrowhead
+        arrow_head = QPolygonF([end, point1, point2])
+        painter.drawPolygon(arrow_head)

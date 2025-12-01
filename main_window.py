@@ -186,6 +186,32 @@ class MainWindow(QMainWindow):
         toolbar.addAction(pen_action)
         self.pen_action = pen_action
         
+        line_action = QAction("📏 Line", self)
+        line_action.setCheckable(True)
+        line_action.triggered.connect(lambda: self.set_drawing_mode('line'))
+        toolbar.addAction(line_action)
+        self.line_action = line_action
+        
+        arrow_action = QAction("➡ Arrow", self)
+        arrow_action.setCheckable(True)
+        arrow_action.triggered.connect(lambda: self.set_drawing_mode('arrow'))
+        toolbar.addAction(arrow_action)
+        self.arrow_action = arrow_action
+        
+        circle_action = QAction("⭕ Circle", self)
+        circle_action.setCheckable(True)
+        circle_action.triggered.connect(lambda: self.set_drawing_mode('circle'))
+        toolbar.addAction(circle_action)
+        self.circle_action = circle_action
+        
+        text_action = QAction("📝 Text", self)
+        text_action.setCheckable(True)
+        text_action.triggered.connect(lambda: self.set_drawing_mode('text'))
+        toolbar.addAction(text_action)
+        self.text_action = text_action
+        
+        toolbar.addSeparator()
+        
         erase_action = QAction("🧹 Erase", self)
         erase_action.setCheckable(True)
         erase_action.triggered.connect(lambda: self.set_drawing_mode('erase'))
@@ -449,6 +475,37 @@ class MainWindow(QMainWindow):
         # Update container size after adding all widgets
         self._update_container_size()
     
+    def _update_current_page_from_scroll(self):
+        """Update current page number based on scroll position"""
+        if not self.doc:
+            return
+        
+        # Get scroll position
+        scrollbar = self.scroll_area.verticalScrollBar()
+        scroll_pos = scrollbar.value()
+        viewport_height = self.scroll_area.viewport().height()
+        viewport_center = scroll_pos + viewport_height / 2
+        
+        # Find which page is at the center of viewport
+        current_y = self.scroll_layout.contentsMargins().top()
+        
+        for page_num in range(len(self.doc)):
+            if page_num in self.page_widgets:
+                widget = self.page_widgets[page_num]
+                widget_height = widget.height()
+                
+                # Check if viewport center is within this page
+                if current_y <= viewport_center <= current_y + widget_height:
+                    if self.current_page != page_num:
+                        self.current_page = page_num
+                        self.page_spinbox.blockSignals(True)
+                        self.page_spinbox.setValue(page_num + 1)
+                        self.page_spinbox.blockSignals(False)
+                        self._update_page_label()
+                    break
+                
+                current_y += widget_height + self.scroll_layout.spacing()
+    
     def _get_visible_pages(self):
         """Get list of pages that are visible or near visible area"""
         if not self.doc:
@@ -594,6 +651,9 @@ class MainWindow(QMainWindow):
         """Handle scroll event - lazy load visible pages"""
         if not self.doc or self.two_page_mode:
             return
+        
+        # Update current page based on scroll position
+        self._update_current_page_from_scroll()
         
         # Cancel previous timer if exists
         if hasattr(self, '_scroll_timer') and self._scroll_timer.isActive():
@@ -849,11 +909,15 @@ class MainWindow(QMainWindow):
             self.fullscreen_action.setChecked(True)
     
     def set_drawing_mode(self, mode):
-        """Set drawing mode: 'highlight', 'rectangle', 'pen', 'erase', 'select_text'"""
+        """Set drawing mode: 'highlight', 'rectangle', 'pen', 'line', 'arrow', 'circle', 'text', 'erase', 'select_text'"""
         # Uncheck all drawing actions
         self.highlight_action.setChecked(False)
         self.rectangle_action.setChecked(False)
         self.pen_action.setChecked(False)
+        self.line_action.setChecked(False)
+        self.arrow_action.setChecked(False)
+        self.circle_action.setChecked(False)
+        self.text_action.setChecked(False)
         self.erase_action.setChecked(False)
         self.select_text_action.setChecked(False)
         
@@ -870,6 +934,22 @@ class MainWindow(QMainWindow):
             self.pen_action.setChecked(True)
             color = QColor(0, 0, 255, 255)  # Blue
             self.status_label.setText("Pen mode: Click and drag to draw")
+        elif mode == 'line':
+            self.line_action.setChecked(True)
+            color = QColor(0, 0, 0, 255)  # Black
+            self.status_label.setText("Line mode: Click and drag to draw line")
+        elif mode == 'arrow':
+            self.arrow_action.setChecked(True)
+            color = QColor(255, 0, 0, 255)  # Red
+            self.status_label.setText("Arrow mode: Click and drag to draw arrow")
+        elif mode == 'circle':
+            self.circle_action.setChecked(True)
+            color = QColor(0, 128, 0, 255)  # Green
+            self.status_label.setText("Circle mode: Click and drag to draw circle")
+        elif mode == 'text':
+            self.text_action.setChecked(True)
+            color = QColor(0, 0, 0, 255)  # Black
+            self.status_label.setText("Text mode: Click to add text")
         elif mode == 'erase':
             self.erase_action.setChecked(True)
             color = None
@@ -891,6 +971,10 @@ class MainWindow(QMainWindow):
         self.highlight_action.setChecked(False)
         self.rectangle_action.setChecked(False)
         self.pen_action.setChecked(False)
+        self.line_action.setChecked(False)
+        self.arrow_action.setChecked(False)
+        self.circle_action.setChecked(False)
+        self.text_action.setChecked(False)
         self.erase_action.setChecked(False)
         self.select_text_action.setChecked(False)
         
