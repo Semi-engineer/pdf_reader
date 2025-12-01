@@ -1,0 +1,90 @@
+COMMERCIAL LICENSE AGREEMENT
+
+DocLens Pro - Commercial Edition
+
+Copyright (c) 2025 [Your Company Name]
+
+IMPORTANT - READ CAREFULLY: This Commercial License Agreement ("Agreement") is a legal 
+agreement between you (either an individual or a single entity) and [Your Company Name] 
+for the DocLens Pro software product identified above, which includes computer software 
+and may include associated media, printed materials, and "online" or electronic documentation 
+("Software Product").
+
+BY INSTALLING, COPYING, OR OTHERWISE USING THE SOFTWARE PRODUCT, YOU AGREE TO BE BOUND BY 
+THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE TO THE TERMS OF THIS AGREEMENT, DO NOT 
+INSTALL OR USE THE SOFTWARE PRODUCT.
+
+1. GRANT OF LICENSE
+   Subject to the terms and conditions of this Agreement, [Your Company Name] grants you a 
+   non-exclusive, non-transferable license to:
+   
+   a) Install and use the Software Product on a single computer or device
+   b) Make one copy of the Software Product for backup purposes only
+   c) Use the Software Product for commercial purposes
+
+2. TRIAL VERSION
+   If you have downloaded a trial version of the Software Product, you may use it for 
+   evaluation purposes for a period of 30 days from the date of installation. After the 
+   trial period expires, you must either:
+   
+   a) Purchase a license to continue using the Software Product, or
+   b) Uninstall and discontinue use of the Software Product
+
+3. LICENSE KEY
+   Upon purchase, you will receive a unique license key that must be activated to unlock 
+   the full version of the Software Product. The license key is:
+   
+   a) Valid for one installation only
+   b) Non-transferable without written permission from [Your Company Name]
+   c) Subject to verification and may be deactivated if used in violation of this Agreement
+
+4. RESTRICTIONS
+   You may NOT:
+   
+   a) Reverse engineer, decompile, or disassemble the Software Product
+   b) Rent, lease, or lend the Software Product
+   c) Remove or modify any proprietary notices or labels on the Software Product
+   d) Distribute, sublicense, or transfer the Software Product to third parties
+   e) Use the Software Product for any illegal purpose
+
+5. INTELLECTUAL PROPERTY
+   The Software Product is protected by copyright laws and international copyright treaties, 
+   as well as other intellectual property laws and treaties. [Your Company Name] retains 
+   all rights, title, and interest in and to the Software Product.
+
+6. SUPPORT AND UPDATES
+   Licensed users are entitled to:
+   
+   a) Technical support via email for 1 year from purchase date
+   b) Free updates and bug fixes for the current major version
+   c) Discounted upgrades to future major versions
+
+7. WARRANTY DISCLAIMER
+   THE SOFTWARE PRODUCT IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS 
+   OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY 
+   AND FITNESS FOR A PARTICULAR PURPOSE.
+
+8. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL [Your Company Name] BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, 
+   OR CONSEQUENTIAL DAMAGES WHATSOEVER ARISING OUT OF THE USE OF OR INABILITY TO USE THE 
+   SOFTWARE PRODUCT.
+
+9. TERMINATION
+   This Agreement is effective until terminated. Your rights under this Agreement will 
+   terminate automatically without notice if you fail to comply with any term of this 
+   Agreement. Upon termination, you must destroy all copies of the Software Product.
+
+10. REFUND POLICY
+    We offer a 30-day money-back guarantee. If you are not satisfied with the Software 
+    Product, you may request a full refund within 30 days of purchase.
+
+11. GOVERNING LAW
+    This Agreement shall be governed by the laws of [Your Jurisdiction].
+
+For questions regarding this Agreement, please contact:
+Email: support@yourcompany.com
+Website: https://www.yourcompany.com
+
+[Your Company Name]
+[Your Address]
+[Your Contact Information]

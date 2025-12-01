@@ -1,5 +1,5 @@
 """
-PDF Viewer Application using PySide6 and PyMuPDF
+DocLens - PDF Viewer Application using PySide6 and PyMuPDF
 Main entry point
 """
 
@@ -14,7 +14,7 @@ from main_window import MainWindow
 
 def load_settings():
     """Load application settings"""
-    settings_path = Path.home() / ".pdf_viewer_settings.json"
+    settings_path = Path.home() / ".doclens_settings.json"
     if settings_path.exists():
         try:
             with open(settings_path, 'r') as f:
@@ -26,7 +26,7 @@ def load_settings():
 
 def save_settings(settings):
     """Save application settings"""
-    settings_path = Path.home() / ".pdf_viewer_settings.json"
+    settings_path = Path.home() / ".doclens_settings.json"
     try:
         with open(settings_path, 'w') as f:
             json.dump(settings, f, indent=2)
@@ -43,8 +43,14 @@ def main():
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
     
     app = QApplication(sys.argv)
-    app.setApplicationName("PDF Viewer")
-    app.setOrganizationName("PDFViewer")
+    app.setApplicationName("DocLens")
+    app.setOrganizationName("DocLens")
+    
+    # Set application icon
+    icon_path = Path(__file__).parent / "icon" / "icon.ico"
+    if icon_path.exists():
+        from PySide6.QtGui import QIcon
+        app.setWindowIcon(QIcon(str(icon_path)))
     
     # Load settings
     settings = load_settings()

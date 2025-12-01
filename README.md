@@ -1,4 +1,4 @@
-# PDF Viewer
+# DocLens
 
 A feature-rich PDF viewer built with PySide6 and PyMuPDF.
 

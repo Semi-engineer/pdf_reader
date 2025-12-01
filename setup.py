@@ -1,5 +1,5 @@
 """
-Setup script for PDF Viewer application
+Setup script for DocLens application
 """
 
 from setuptools import setup, find_packages
@@ -20,14 +20,14 @@ if requirements_path.exists():
     ]
 
 setup(
-    name="pdf-viewer",
+    name="doclens",
     version="1.0.0",
     author="Your Name",
     author_email="your.email@example.com",
-    description="A feature-rich PDF viewer built with PySide6 and PyMuPDF",
+    description="DocLens - A feature-rich PDF viewer built with PySide6 and PyMuPDF",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/pdf-viewer",
+    url="https://github.com/yourusername/doclens",
     py_modules=[
         "main",
         "main_window",
@@ -44,7 +44,7 @@ setup(
     python_requires=">=3.8",
     entry_points={
         "console_scripts": [
-            "pdf-viewer=main:main",
+            "doclens=main:main",
         ],
     },
     classifiers=[
@@ -59,5 +59,5 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
-    keywords="pdf viewer pyside6 pymupdf",
+    keywords="doclens pdf viewer pyside6 pymupdf",
 )

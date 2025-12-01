@@ -55,7 +55,7 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Setup user interface"""
-        self.setWindowTitle("PDF Viewer")
+        self.setWindowTitle("DocLens")
         self.setGeometry(100, 100, 1200, 800)
         
         # Central widget with scroll area
@@ -345,7 +345,7 @@ class MainWindow(QMainWindow):
             self.page_rotations = {}
             
             # Update UI
-            self.setWindowTitle(f"PDF Viewer - {os.path.basename(file_path)}")
+            self.setWindowTitle(f"DocLens - {os.path.basename(file_path)}")
             self.page_spinbox.setMaximum(len(self.doc))
             self.page_spinbox.setValue(1)
             
