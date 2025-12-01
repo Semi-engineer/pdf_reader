@@ -48,12 +48,14 @@ class PDFLabelWithOverlay(QLabel):
         self.zoom = zoom
     
     def set_drawing_mode(self, mode, color=None):
-        """Set drawing mode: None, 'highlight', 'rectangle', 'pen'"""
+        """Set drawing mode: None, 'highlight', 'rectangle', 'pen', 'erase'"""
         self.drawing_mode = mode
         if color:
             self.drawing_color = color
         
-        if mode:
+        if mode == 'erase':
+            self.setCursor(Qt.PointingHandCursor)
+        elif mode:
             self.setCursor(Qt.CrossCursor)
         else:
             self.setCursor(Qt.ArrowCursor)
@@ -138,18 +140,24 @@ class PDFLabelWithOverlay(QLabel):
         painter.end()
     
     def mousePressEvent(self, event):
-        """Handle mouse press for drawing"""
+        """Handle mouse press for drawing or erasing"""
         if event.button() == Qt.LeftButton and self.drawing_mode:
-            self.is_drawing = True
-            # Get position relative to pixmap
-            self.start_point = self._get_pixmap_position(event.position())
-            self.current_point = self.start_point
-            
-            if self.drawing_mode == 'pen':
-                self.drawing_path = QPainterPath()
-                self.drawing_path.moveTo(self.start_point)
-            
-            self.update()
+            if self.drawing_mode == 'erase':
+                # Erase mode - find and remove annotation at click position
+                click_pos = self._get_pixmap_position(event.position())
+                self._erase_annotation_at(click_pos)
+            else:
+                # Drawing mode
+                self.is_drawing = True
+                # Get position relative to pixmap
+                self.start_point = self._get_pixmap_position(event.position())
+                self.current_point = self.start_point
+                
+                if self.drawing_mode == 'pen':
+                    self.drawing_path = QPainterPath()
+                    self.drawing_path.moveTo(self.start_point)
+                
+                self.update()
     
     def mouseMoveEvent(self, event):
         """Handle mouse move for drawing"""
@@ -235,6 +243,43 @@ class PDFLabelWithOverlay(QLabel):
         # Widget has fixed size = pixmap size, so no offset needed
         # Just return the position as-is
         return widget_pos
+    
+    def _erase_annotation_at(self, pos):
+        """Erase annotation at the given position"""
+        # Find annotation that contains this point
+        for i, annotation in enumerate(self.annotations):
+            if annotation.annotation_type in ['highlight', 'rectangle']:
+                # Check if point is inside rectangle
+                rect = self._convert_pdf_rect_to_widget(annotation.rect)
+                if rect.contains(pos):
+                    # Remove this annotation
+                    removed = self.annotations.pop(i)
+                    self.update()
+                    
+                    # Emit signal to remove from manager
+                    # We need to add this signal
+                    print(f"Erased annotation at page {self.page_num}")
+                    return
+            elif annotation.annotation_type == 'pen':
+                # Check if point is near the path
+                if hasattr(annotation, 'path'):
+                    # Simple check: if point is in bounding rect
+                    rect = annotation.path.boundingRect()
+                    if hasattr(annotation, 'original_zoom'):
+                        scale = self.zoom / 100.0
+                        scale_factor = scale / (annotation.original_zoom / 100.0)
+                        rect = QRectF(
+                            rect.x() * scale_factor,
+                            rect.y() * scale_factor,
+                            rect.width() * scale_factor,
+                            rect.height() * scale_factor
+                        )
+                    
+                    if rect.contains(pos):
+                        removed = self.annotations.pop(i)
+                        self.update()
+                        print(f"Erased pen annotation at page {self.page_num}")
+                        return
     
     def _convert_widget_rect_to_pdf(self, widget_rect):
         """Convert widget coordinate rect to PDF coordinates (as QRectF with PDF scale)"""

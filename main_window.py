@@ -186,6 +186,12 @@ class MainWindow(QMainWindow):
         toolbar.addAction(pen_action)
         self.pen_action = pen_action
         
+        erase_action = QAction("🧹 Erase", self)
+        erase_action.setCheckable(True)
+        erase_action.triggered.connect(lambda: self.set_drawing_mode('erase'))
+        toolbar.addAction(erase_action)
+        self.erase_action = erase_action
+        
         clear_mode_action = QAction("⊗ Clear Mode", self)
         clear_mode_action.triggered.connect(self.clear_drawing_mode)
         toolbar.addAction(clear_mode_action)
@@ -831,11 +837,12 @@ class MainWindow(QMainWindow):
             self.fullscreen_action.setChecked(True)
     
     def set_drawing_mode(self, mode):
-        """Set drawing mode: 'highlight', 'rectangle', 'pen'"""
+        """Set drawing mode: 'highlight', 'rectangle', 'pen', 'erase'"""
         # Uncheck all drawing actions
         self.highlight_action.setChecked(False)
         self.rectangle_action.setChecked(False)
         self.pen_action.setChecked(False)
+        self.erase_action.setChecked(False)
         
         # Set color based on mode
         if mode == 'highlight':
@@ -850,6 +857,10 @@ class MainWindow(QMainWindow):
             self.pen_action.setChecked(True)
             color = QColor(0, 0, 255, 255)  # Blue
             self.status_label.setText("Pen mode: Click and drag to draw")
+        elif mode == 'erase':
+            self.erase_action.setChecked(True)
+            color = None
+            self.status_label.setText("Erase mode: Click on annotation to delete")
         else:
             color = None
             self.status_label.setText("Ready")
@@ -863,6 +874,7 @@ class MainWindow(QMainWindow):
         self.highlight_action.setChecked(False)
         self.rectangle_action.setChecked(False)
         self.pen_action.setChecked(False)
+        self.erase_action.setChecked(False)
         
         for widget in self.page_widgets.values():
             widget.set_drawing_mode(None)
