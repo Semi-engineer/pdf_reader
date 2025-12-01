@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QListWidgetItem, QDockWidget, QFileDialog, QLineEdit,
                                QPushButton, QLabel, QMessageBox, QSpinBox, QComboBox)
 from PySide6.QtCore import Qt, QTimer, QSize
-from PySide6.QtGui import QAction, QKeySequence, QPixmap, QIcon
+from PySide6.QtGui import QAction, QKeySequence, QPixmap, QIcon, QColor
 import fitz
 import os
 
@@ -15,6 +15,7 @@ from render_worker import RenderWorker
 from page_cache import PageCache
 from thumbnail_manager import ThumbnailManager
 from search_manager import SearchManager
+from annotation_manager import AnnotationManager
 from pdf_label_with_overlay import PDFLabelWithOverlay
 
 
@@ -39,6 +40,7 @@ class MainWindow(QMainWindow):
         self.page_cache = PageCache(max_size=30)
         self.thumbnail_manager = ThumbnailManager()
         self.search_manager = SearchManager()
+        self.annotation_manager = AnnotationManager()
         
         # Page widgets
         self.page_widgets = {}
@@ -143,7 +145,76 @@ class MainWindow(QMainWindow):
         
         toolbar.addSeparator()
         
-
+        # View controls
+        fit_width_action = QAction("Fit Width", self)
+        fit_width_action.triggered.connect(self._fit_width)
+        toolbar.addAction(fit_width_action)
+        
+        fit_page_action = QAction("Fit Page", self)
+        fit_page_action.triggered.connect(self._fit_page)
+        toolbar.addAction(fit_page_action)
+        
+        toolbar.addSeparator()
+        
+        # Rotate
+        rotate_left_action = QAction("↶ Rotate Left", self)
+        rotate_left_action.triggered.connect(self.rotate_left)
+        toolbar.addAction(rotate_left_action)
+        
+        rotate_right_action = QAction("↷ Rotate Right", self)
+        rotate_right_action.triggered.connect(self.rotate_right)
+        toolbar.addAction(rotate_right_action)
+        
+        toolbar.addSeparator()
+        
+        # Drawing tools
+        highlight_action = QAction("🖍 Highlight", self)
+        highlight_action.setCheckable(True)
+        highlight_action.triggered.connect(lambda: self.set_drawing_mode('highlight'))
+        toolbar.addAction(highlight_action)
+        self.highlight_action = highlight_action
+        
+        rectangle_action = QAction("▭ Rectangle", self)
+        rectangle_action.setCheckable(True)
+        rectangle_action.triggered.connect(lambda: self.set_drawing_mode('rectangle'))
+        toolbar.addAction(rectangle_action)
+        self.rectangle_action = rectangle_action
+        
+        pen_action = QAction("✏ Pen", self)
+        pen_action.setCheckable(True)
+        pen_action.triggered.connect(lambda: self.set_drawing_mode('pen'))
+        toolbar.addAction(pen_action)
+        self.pen_action = pen_action
+        
+        clear_action = QAction("Clear", self)
+        clear_action.triggered.connect(self.clear_drawing_mode)
+        toolbar.addAction(clear_action)
+        
+        toolbar.addSeparator()
+        
+        # Save annotations
+        save_action = QAction("Save PDF", self)
+        save_action.setShortcut(QKeySequence.Save)
+        save_action.triggered.connect(self.save_with_annotations)
+        toolbar.addAction(save_action)
+        
+        toolbar.addSeparator()
+        
+        # Print
+        print_action = QAction("Print", self)
+        print_action.setShortcut(QKeySequence.Print)
+        print_action.triggered.connect(self.print_pdf)
+        toolbar.addAction(print_action)
+        
+        toolbar.addSeparator()
+        
+        # Fullscreen
+        fullscreen_action = QAction("Fullscreen", self)
+        fullscreen_action.setShortcut(Qt.Key_F11)
+        fullscreen_action.setCheckable(True)
+        fullscreen_action.triggered.connect(self.toggle_fullscreen)
+        toolbar.addAction(fullscreen_action)
+        self.fullscreen_action = fullscreen_action
         
         toolbar.addSeparator()
         
@@ -398,6 +469,9 @@ class MainWindow(QMainWindow):
         # Create PDFLabelWithOverlay for search and annotation support
         widget = PDFLabelWithOverlay(page_num)
         widget.set_zoom(self.zoom_level)
+        
+        # Connect annotation signal
+        widget.annotation_added.connect(self._on_annotation_added)
         
         # Set initial size based on PDF page dimensions
         try:
@@ -657,14 +731,177 @@ class MainWindow(QMainWindow):
         if result:
             self.goto_page(result['page'])
     
-
-
-
-
-
-
-
-
+    def rotate_left(self):
+        """Rotate all pages 90 degrees counter-clockwise"""
+        if not self.doc:
+            return
+        
+        self.rotation = (self.rotation - 90) % 360
+        
+        # Clear cache and re-render
+        self.page_cache.clear()
+        self.page_widgets.clear()
+        
+        # Clear layout
+        while self.scroll_layout.count():
+            item = self.scroll_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        self._render_visible_pages()
+        self.status_label.setText(f"Rotated: {self.rotation}°")
+    
+    def rotate_right(self):
+        """Rotate all pages 90 degrees clockwise"""
+        if not self.doc:
+            return
+        
+        self.rotation = (self.rotation + 90) % 360
+        
+        # Clear cache and re-render
+        self.page_cache.clear()
+        self.page_widgets.clear()
+        
+        # Clear layout
+        while self.scroll_layout.count():
+            item = self.scroll_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        self._render_visible_pages()
+        self.status_label.setText(f"Rotated: {self.rotation}°")
+    
+    def print_pdf(self):
+        """Print the PDF"""
+        if not self.doc:
+            return
+        
+        from PySide6.QtPrintSupport import QPrinter, QPrintDialog
+        from PySide6.QtGui import QPainter
+        
+        printer = QPrinter(QPrinter.HighResolution)
+        dialog = QPrintDialog(printer, self)
+        
+        if dialog.exec() == QPrintDialog.Accepted:
+            painter = QPainter(printer)
+            
+            try:
+                for page_num in range(len(self.doc)):
+                    if page_num > 0:
+                        printer.newPage()
+                    
+                    # Render page at high resolution
+                    page = self.doc[page_num]
+                    mat = fitz.Matrix(2.0, 2.0)
+                    pix = page.get_pixmap(matrix=mat)
+                    
+                    # Convert to QPixmap
+                    from PySide6.QtGui import QImage
+                    img_format = QImage.Format_RGB888
+                    qimg = QImage(pix.samples, pix.width, pix.height, pix.stride, img_format)
+                    pixmap = QPixmap.fromImage(qimg.copy())
+                    
+                    # Scale to fit printer page
+                    scaled = pixmap.scaled(
+                        printer.pageRect().size().toSize(),
+                        Qt.KeepAspectRatio,
+                        Qt.SmoothTransformation
+                    )
+                    
+                    painter.drawPixmap(0, 0, scaled)
+                
+                painter.end()
+                self.status_label.setText("Print completed")
+                
+            except Exception as e:
+                painter.end()
+                QMessageBox.warning(self, "Print Error", f"Failed to print: {str(e)}")
+    
+    def toggle_fullscreen(self):
+        """Toggle fullscreen mode"""
+        if self.isFullScreen():
+            self.showNormal()
+            self.fullscreen_action.setChecked(False)
+        else:
+            self.showFullScreen()
+            self.fullscreen_action.setChecked(True)
+    
+    def set_drawing_mode(self, mode):
+        """Set drawing mode: 'highlight', 'rectangle', 'pen'"""
+        # Uncheck all drawing actions
+        self.highlight_action.setChecked(False)
+        self.rectangle_action.setChecked(False)
+        self.pen_action.setChecked(False)
+        
+        # Set color based on mode
+        if mode == 'highlight':
+            self.highlight_action.setChecked(True)
+            color = QColor(255, 255, 0, 100)  # Yellow
+            self.status_label.setText("Highlight mode: Click and drag to highlight")
+        elif mode == 'rectangle':
+            self.rectangle_action.setChecked(True)
+            color = QColor(255, 0, 0, 200)  # Red
+            self.status_label.setText("Rectangle mode: Click and drag to draw rectangle")
+        elif mode == 'pen':
+            self.pen_action.setChecked(True)
+            color = QColor(0, 0, 255, 255)  # Blue
+            self.status_label.setText("Pen mode: Click and drag to draw")
+        else:
+            color = None
+            self.status_label.setText("Ready")
+        
+        # Set mode on all page widgets
+        for widget in self.page_widgets.values():
+            widget.set_drawing_mode(mode, color)
+    
+    def clear_drawing_mode(self):
+        """Clear drawing mode"""
+        self.highlight_action.setChecked(False)
+        self.rectangle_action.setChecked(False)
+        self.pen_action.setChecked(False)
+        
+        for widget in self.page_widgets.values():
+            widget.set_drawing_mode(None)
+        
+        self.status_label.setText("Ready")
+    
+    def _on_annotation_added(self, page_num, rect, color, annotation_type):
+        """Handle annotation added from widget"""
+        self.annotation_manager.add_annotation(page_num, rect, color, annotation_type)
+        
+        # Update the widget to show the annotation
+        if page_num in self.page_widgets:
+            widget = self.page_widgets[page_num]
+            annotations = self.annotation_manager.get_annotations_for_page(page_num)
+            widget.set_annotations(annotations)
+            widget.update()  # Force repaint
+        
+        self.status_label.setText(f"Annotation added to page {page_num + 1} (Total: {len(self.annotation_manager.annotations)})")
+    
+    def save_with_annotations(self):
+        """Save PDF with annotations"""
+        if not self.doc_path:
+            QMessageBox.warning(self, "No Document", "Please open a PDF first")
+            return
+        
+        if not self.annotation_manager.annotations:
+            QMessageBox.information(self, "No Annotations", "No annotations to save")
+            return
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save PDF with Annotations",
+            self.doc_path.replace('.pdf', '_annotated.pdf'),
+            "PDF Files (*.pdf)"
+        )
+        
+        if file_path:
+            success = self.annotation_manager.save_to_pdf(self.doc_path, file_path)
+            if success:
+                QMessageBox.information(self, "Success", f"PDF saved with {len(self.annotation_manager.annotations)} annotations")
+            else:
+                QMessageBox.warning(self, "Error", "Failed to save annotations")
+    
     def _update_page_label(self):
         """Update page label in status bar"""
         if self.doc:
