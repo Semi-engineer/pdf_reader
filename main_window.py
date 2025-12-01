@@ -19,6 +19,7 @@ from search_manager import SearchManager
 from annotation_manager import AnnotationManager
 from pdf_label_with_overlay import PDFLabelWithOverlay
 from tool_palette import ToolPalette
+from icon_manager import IconManager
 
 
 class MainWindow(QMainWindow):
@@ -107,7 +108,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(file_toolbar)
         
         # File actions
-        open_action = QAction("📂 Open", self)
+        open_action = QAction(IconManager.get_icon('open', '#4CAF50'), "Open", self)
         open_action.setShortcut(QKeySequence.Open)
         open_action.triggered.connect(self.open_file_dialog)
         file_toolbar.addAction(open_action)
@@ -115,7 +116,7 @@ class MainWindow(QMainWindow):
         file_toolbar.addSeparator()
         
         # Tool Palette Toggle
-        palette_action = QAction("🎨 Tools", self)
+        palette_action = QAction(IconManager.get_icon('palette', '#FF9800'), "Tools", self)
         palette_action.setCheckable(True)
         palette_action.setChecked(True)
         palette_action.setShortcut("T")
@@ -126,12 +127,12 @@ class MainWindow(QMainWindow):
         file_toolbar.addSeparator()
         
         # Navigation
-        prev_action = QAction("◀ Previous", self)
+        prev_action = QAction(IconManager.get_icon('previous', '#2196F3'), "Previous", self)
         prev_action.setShortcut(Qt.Key_PageUp)
         prev_action.triggered.connect(self.prev_page)
         file_toolbar.addAction(prev_action)
         
-        next_action = QAction("▶ Next", self)
+        next_action = QAction(IconManager.get_icon('next', '#2196F3'), "Next", self)
         next_action.setShortcut(Qt.Key_PageDown)
         next_action.triggered.connect(self.next_page)
         file_toolbar.addAction(next_action)
@@ -146,12 +147,12 @@ class MainWindow(QMainWindow):
         file_toolbar.addSeparator()
         
         # Save & Print
-        save_action = QAction("💾 Save", self)
+        save_action = QAction(IconManager.get_icon('save', '#4CAF50'), "Save", self)
         save_action.setShortcut(QKeySequence.Save)
         save_action.triggered.connect(self.save_with_annotations)
         file_toolbar.addAction(save_action)
         
-        print_action = QAction("🖨 Print", self)
+        print_action = QAction(IconManager.get_icon('print', '#9C27B0'), "Print", self)
         print_action.setShortcut(QKeySequence.Print)
         print_action.triggered.connect(self.print_pdf)
         file_toolbar.addAction(print_action)
@@ -163,12 +164,12 @@ class MainWindow(QMainWindow):
         self.addToolBar(view_toolbar)
         
         # Zoom controls
-        zoom_out_action = QAction("🔍- Zoom Out", self)
+        zoom_out_action = QAction(IconManager.get_icon('zoom_out', '#607D8B'), "Zoom Out", self)
         zoom_out_action.setShortcut(QKeySequence.ZoomOut)
         zoom_out_action.triggered.connect(self.zoom_out)
         view_toolbar.addAction(zoom_out_action)
         
-        zoom_in_action = QAction("🔍+ Zoom In", self)
+        zoom_in_action = QAction(IconManager.get_icon('zoom_in', '#607D8B'), "Zoom In", self)
         zoom_in_action.setShortcut(QKeySequence.ZoomIn)
         zoom_in_action.triggered.connect(self.zoom_in)
         view_toolbar.addAction(zoom_in_action)
@@ -182,29 +183,29 @@ class MainWindow(QMainWindow):
         view_toolbar.addSeparator()
         
         # Fit controls
-        fit_width_action = QAction("↔ Fit Width", self)
+        fit_width_action = QAction(IconManager.get_icon('fit_width', '#00BCD4'), "Fit Width", self)
         fit_width_action.triggered.connect(self._fit_width)
         view_toolbar.addAction(fit_width_action)
         
-        fit_page_action = QAction("⛶ Fit Page", self)
+        fit_page_action = QAction(IconManager.get_icon('fit_page', '#00BCD4'), "Fit Page", self)
         fit_page_action.triggered.connect(self._fit_page)
         view_toolbar.addAction(fit_page_action)
         
         view_toolbar.addSeparator()
         
         # Rotate
-        rotate_left_action = QAction("↶ Rotate Left", self)
+        rotate_left_action = QAction(IconManager.get_icon('rotate_left', '#FF5722'), "Rotate Left", self)
         rotate_left_action.triggered.connect(self.rotate_left)
         view_toolbar.addAction(rotate_left_action)
         
-        rotate_right_action = QAction("↷ Rotate Right", self)
+        rotate_right_action = QAction(IconManager.get_icon('rotate_right', '#FF5722'), "Rotate Right", self)
         rotate_right_action.triggered.connect(self.rotate_right)
         view_toolbar.addAction(rotate_right_action)
         
         view_toolbar.addSeparator()
         
         # Fullscreen
-        fullscreen_action = QAction("⛶ Fullscreen", self)
+        fullscreen_action = QAction(IconManager.get_icon('fullscreen', '#9E9E9E'), "Fullscreen", self)
         fullscreen_action.setShortcut(Qt.Key_F11)
         fullscreen_action.setCheckable(True)
         fullscreen_action.triggered.connect(self.toggle_fullscreen)
@@ -252,19 +253,19 @@ class MainWindow(QMainWindow):
         annotation_toolbar.addSeparator()
         
         # Highlight & Rectangle
-        highlight_action = QAction("🖍 Highlight", self)
+        highlight_action = QAction(IconManager.get_icon('highlight', '#FFEB3B'), "Highlight", self)
         highlight_action.setCheckable(True)
         highlight_action.triggered.connect(lambda: self.set_drawing_mode('highlight'))
         annotation_toolbar.addAction(highlight_action)
         self.highlight_action = highlight_action
         
-        rectangle_action = QAction("▭ Rectangle", self)
+        rectangle_action = QAction(IconManager.get_icon('rectangle', '#F44336'), "Rectangle", self)
         rectangle_action.setCheckable(True)
         rectangle_action.triggered.connect(lambda: self.set_drawing_mode('rectangle'))
         annotation_toolbar.addAction(rectangle_action)
         self.rectangle_action = rectangle_action
         
-        circle_action = QAction("⭕ Circle", self)
+        circle_action = QAction(IconManager.get_icon('circle', '#4CAF50'), "Circle", self)
         circle_action.setCheckable(True)
         circle_action.triggered.connect(lambda: self.set_drawing_mode('circle'))
         annotation_toolbar.addAction(circle_action)
@@ -273,7 +274,7 @@ class MainWindow(QMainWindow):
         annotation_toolbar.addSeparator()
         
         # Text
-        text_action = QAction("📝 Text Box", self)
+        text_action = QAction(IconManager.get_icon('text', '#2196F3'), "Text Box", self)
         text_action.setCheckable(True)
         text_action.triggered.connect(lambda: self.set_drawing_mode('text'))
         annotation_toolbar.addAction(text_action)
@@ -285,19 +286,19 @@ class MainWindow(QMainWindow):
         drawing_toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(drawing_toolbar)
         
-        pen_action = QAction("✏ Pen", self)
+        pen_action = QAction(IconManager.get_icon('pen', '#3F51B5'), "Pen", self)
         pen_action.setCheckable(True)
         pen_action.triggered.connect(lambda: self.set_drawing_mode('pen'))
         drawing_toolbar.addAction(pen_action)
         self.pen_action = pen_action
         
-        line_action = QAction("📏 Line", self)
+        line_action = QAction(IconManager.get_icon('line', '#607D8B'), "Line", self)
         line_action.setCheckable(True)
         line_action.triggered.connect(lambda: self.set_drawing_mode('line'))
         drawing_toolbar.addAction(line_action)
         self.line_action = line_action
         
-        arrow_action = QAction("➡ Arrow", self)
+        arrow_action = QAction(IconManager.get_icon('arrow', '#FF5722'), "Arrow", self)
         arrow_action.setCheckable(True)
         arrow_action.triggered.connect(lambda: self.set_drawing_mode('arrow'))
         drawing_toolbar.addAction(arrow_action)
@@ -306,17 +307,17 @@ class MainWindow(QMainWindow):
         drawing_toolbar.addSeparator()
         
         # Erase & Clear
-        erase_action = QAction("🧹 Erase", self)
+        erase_action = QAction(IconManager.get_icon('erase', '#FF9800'), "Erase", self)
         erase_action.setCheckable(True)
         erase_action.triggered.connect(lambda: self.set_drawing_mode('erase'))
         drawing_toolbar.addAction(erase_action)
         self.erase_action = erase_action
         
-        clear_mode_action = QAction("⊗ Clear Mode", self)
+        clear_mode_action = QAction(IconManager.get_icon('clear', '#9E9E9E'), "Clear Mode", self)
         clear_mode_action.triggered.connect(self.clear_drawing_mode)
         drawing_toolbar.addAction(clear_mode_action)
         
-        clear_all_action = QAction("🗑 Clear All", self)
+        clear_all_action = QAction(IconManager.get_icon('trash', '#F44336'), "Clear All", self)
         clear_all_action.triggered.connect(self.clear_all_annotations)
         drawing_toolbar.addAction(clear_all_action)
         
@@ -327,7 +328,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(text_toolbar)
         
         # Text selection
-        select_text_action = QAction("📋 Select Text", self)
+        select_text_action = QAction(IconManager.get_icon('select_text', '#00BCD4'), "Select Text", self)
         select_text_action.setCheckable(True)
         select_text_action.triggered.connect(lambda: self.set_drawing_mode('select_text'))
         text_toolbar.addAction(select_text_action)
@@ -343,12 +344,12 @@ class MainWindow(QMainWindow):
         self.search_input.returnPressed.connect(self.search_text)
         text_toolbar.addWidget(self.search_input)
         
-        search_action = QAction("🔍 Find", self)
+        search_action = QAction(IconManager.get_icon('search', '#4CAF50'), "Find", self)
         search_action.setShortcut(QKeySequence.Find)
         search_action.triggered.connect(self.search_text)
         text_toolbar.addAction(search_action)
         
-        search_next_action = QAction("▶ Next", self)
+        search_next_action = QAction(IconManager.get_icon('next', '#4CAF50'), "Next", self)
         search_next_action.setShortcut(QKeySequence.FindNext)
         search_next_action.triggered.connect(self.search_next)
         text_toolbar.addAction(search_next_action)
