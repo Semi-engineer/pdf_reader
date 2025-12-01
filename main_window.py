@@ -91,197 +91,214 @@ class MainWindow(QMainWindow):
 
     
     def _setup_toolbar(self):
-        """Setup toolbar with actions"""
-        toolbar = QToolBar("Main Toolbar")
-        toolbar.setIconSize(QSize(24, 24))
-        self.addToolBar(toolbar)
+        """Setup toolbar with actions - organized by function"""
+        
+        # === FILE & NAVIGATION TOOLBAR ===
+        file_toolbar = QToolBar("File & Navigation")
+        file_toolbar.setIconSize(QSize(24, 24))
+        self.addToolBar(file_toolbar)
         
         # File actions
-        open_action = QAction("Open", self)
+        open_action = QAction("📂 Open", self)
         open_action.setShortcut(QKeySequence.Open)
         open_action.triggered.connect(self.open_file_dialog)
-        toolbar.addAction(open_action)
+        file_toolbar.addAction(open_action)
         
-
-        
-        toolbar.addSeparator()
+        file_toolbar.addSeparator()
         
         # Navigation
-        prev_action = QAction("Previous", self)
+        prev_action = QAction("◀ Previous", self)
         prev_action.setShortcut(Qt.Key_PageUp)
         prev_action.triggered.connect(self.prev_page)
-        toolbar.addAction(prev_action)
+        file_toolbar.addAction(prev_action)
         
-        next_action = QAction("Next", self)
+        next_action = QAction("▶ Next", self)
         next_action.setShortcut(Qt.Key_PageDown)
         next_action.triggered.connect(self.next_page)
-        toolbar.addAction(next_action)
+        file_toolbar.addAction(next_action)
         
         # Page number
-        toolbar.addWidget(QLabel("  Page: "))
+        file_toolbar.addWidget(QLabel("  Page: "))
         self.page_spinbox = QSpinBox()
         self.page_spinbox.setMinimum(1)
         self.page_spinbox.valueChanged.connect(self._on_page_spinbox_changed)
-        toolbar.addWidget(self.page_spinbox)
+        file_toolbar.addWidget(self.page_spinbox)
         
-        toolbar.addSeparator()
+        file_toolbar.addSeparator()
+        
+        # Save & Print
+        save_action = QAction("💾 Save", self)
+        save_action.setShortcut(QKeySequence.Save)
+        save_action.triggered.connect(self.save_with_annotations)
+        file_toolbar.addAction(save_action)
+        
+        print_action = QAction("🖨 Print", self)
+        print_action.setShortcut(QKeySequence.Print)
+        print_action.triggered.connect(self.print_pdf)
+        file_toolbar.addAction(print_action)
+        
+        # === VIEW TOOLBAR ===
+        self.addToolBarBreak()
+        view_toolbar = QToolBar("View Controls")
+        view_toolbar.setIconSize(QSize(24, 24))
+        self.addToolBar(view_toolbar)
         
         # Zoom controls
-        zoom_out_action = QAction("Zoom Out", self)
+        zoom_out_action = QAction("🔍- Zoom Out", self)
         zoom_out_action.setShortcut(QKeySequence.ZoomOut)
         zoom_out_action.triggered.connect(self.zoom_out)
-        toolbar.addAction(zoom_out_action)
+        view_toolbar.addAction(zoom_out_action)
         
-        zoom_in_action = QAction("Zoom In", self)
+        zoom_in_action = QAction("🔍+ Zoom In", self)
         zoom_in_action.setShortcut(QKeySequence.ZoomIn)
         zoom_in_action.triggered.connect(self.zoom_in)
-        toolbar.addAction(zoom_in_action)
+        view_toolbar.addAction(zoom_in_action)
         
         self.zoom_combo = QComboBox()
         self.zoom_combo.addItems(["50%", "75%", "100%", "125%", "150%", "200%", "Fit Width", "Fit Page"])
         self.zoom_combo.setCurrentText("100%")
         self.zoom_combo.currentTextChanged.connect(self._on_zoom_combo_changed)
-        toolbar.addWidget(self.zoom_combo)
+        view_toolbar.addWidget(self.zoom_combo)
         
-        toolbar.addSeparator()
+        view_toolbar.addSeparator()
         
-        # View controls
-        fit_width_action = QAction("Fit Width", self)
+        # Fit controls
+        fit_width_action = QAction("↔ Fit Width", self)
         fit_width_action.triggered.connect(self._fit_width)
-        toolbar.addAction(fit_width_action)
+        view_toolbar.addAction(fit_width_action)
         
-        fit_page_action = QAction("Fit Page", self)
+        fit_page_action = QAction("⛶ Fit Page", self)
         fit_page_action.triggered.connect(self._fit_page)
-        toolbar.addAction(fit_page_action)
+        view_toolbar.addAction(fit_page_action)
         
-        toolbar.addSeparator()
+        view_toolbar.addSeparator()
         
         # Rotate
         rotate_left_action = QAction("↶ Rotate Left", self)
         rotate_left_action.triggered.connect(self.rotate_left)
-        toolbar.addAction(rotate_left_action)
+        view_toolbar.addAction(rotate_left_action)
         
         rotate_right_action = QAction("↷ Rotate Right", self)
         rotate_right_action.triggered.connect(self.rotate_right)
-        toolbar.addAction(rotate_right_action)
+        view_toolbar.addAction(rotate_right_action)
         
-        toolbar.addSeparator()
+        view_toolbar.addSeparator()
         
-        # Drawing tools
+        # Fullscreen
+        fullscreen_action = QAction("⛶ Fullscreen", self)
+        fullscreen_action.setShortcut(Qt.Key_F11)
+        fullscreen_action.setCheckable(True)
+        fullscreen_action.triggered.connect(self.toggle_fullscreen)
+        view_toolbar.addAction(fullscreen_action)
+        self.fullscreen_action = fullscreen_action
+        
+        # === ANNOTATION TOOLBAR ===
+        self.addToolBarBreak()
+        annotation_toolbar = QToolBar("Annotations")
+        annotation_toolbar.setIconSize(QSize(24, 24))
+        self.addToolBar(annotation_toolbar)
+        
+        # Highlight & Rectangle
         highlight_action = QAction("🖍 Highlight", self)
         highlight_action.setCheckable(True)
         highlight_action.triggered.connect(lambda: self.set_drawing_mode('highlight'))
-        toolbar.addAction(highlight_action)
+        annotation_toolbar.addAction(highlight_action)
         self.highlight_action = highlight_action
         
         rectangle_action = QAction("▭ Rectangle", self)
         rectangle_action.setCheckable(True)
         rectangle_action.triggered.connect(lambda: self.set_drawing_mode('rectangle'))
-        toolbar.addAction(rectangle_action)
+        annotation_toolbar.addAction(rectangle_action)
         self.rectangle_action = rectangle_action
+        
+        circle_action = QAction("⭕ Circle", self)
+        circle_action.setCheckable(True)
+        circle_action.triggered.connect(lambda: self.set_drawing_mode('circle'))
+        annotation_toolbar.addAction(circle_action)
+        self.circle_action = circle_action
+        
+        annotation_toolbar.addSeparator()
+        
+        # Text
+        text_action = QAction("📝 Text Box", self)
+        text_action.setCheckable(True)
+        text_action.triggered.connect(lambda: self.set_drawing_mode('text'))
+        annotation_toolbar.addAction(text_action)
+        self.text_action = text_action
+        
+        # === DRAWING TOOLBAR ===
+        self.addToolBarBreak()
+        drawing_toolbar = QToolBar("Drawing Tools")
+        drawing_toolbar.setIconSize(QSize(24, 24))
+        self.addToolBar(drawing_toolbar)
         
         pen_action = QAction("✏ Pen", self)
         pen_action.setCheckable(True)
         pen_action.triggered.connect(lambda: self.set_drawing_mode('pen'))
-        toolbar.addAction(pen_action)
+        drawing_toolbar.addAction(pen_action)
         self.pen_action = pen_action
         
         line_action = QAction("📏 Line", self)
         line_action.setCheckable(True)
         line_action.triggered.connect(lambda: self.set_drawing_mode('line'))
-        toolbar.addAction(line_action)
+        drawing_toolbar.addAction(line_action)
         self.line_action = line_action
         
         arrow_action = QAction("➡ Arrow", self)
         arrow_action.setCheckable(True)
         arrow_action.triggered.connect(lambda: self.set_drawing_mode('arrow'))
-        toolbar.addAction(arrow_action)
+        drawing_toolbar.addAction(arrow_action)
         self.arrow_action = arrow_action
         
-        circle_action = QAction("⭕ Circle", self)
-        circle_action.setCheckable(True)
-        circle_action.triggered.connect(lambda: self.set_drawing_mode('circle'))
-        toolbar.addAction(circle_action)
-        self.circle_action = circle_action
+        drawing_toolbar.addSeparator()
         
-        text_action = QAction("📝 Text", self)
-        text_action.setCheckable(True)
-        text_action.triggered.connect(lambda: self.set_drawing_mode('text'))
-        toolbar.addAction(text_action)
-        self.text_action = text_action
-        
-        toolbar.addSeparator()
-        
+        # Erase & Clear
         erase_action = QAction("🧹 Erase", self)
         erase_action.setCheckable(True)
         erase_action.triggered.connect(lambda: self.set_drawing_mode('erase'))
-        toolbar.addAction(erase_action)
+        drawing_toolbar.addAction(erase_action)
         self.erase_action = erase_action
-        
-        toolbar.addSeparator()
-        
-        # Text selection
-        select_text_action = QAction("📝 Select Text", self)
-        select_text_action.setCheckable(True)
-        select_text_action.triggered.connect(lambda: self.set_drawing_mode('select_text'))
-        toolbar.addAction(select_text_action)
-        self.select_text_action = select_text_action
-        
-        toolbar.addSeparator()
         
         clear_mode_action = QAction("⊗ Clear Mode", self)
         clear_mode_action.triggered.connect(self.clear_drawing_mode)
-        toolbar.addAction(clear_mode_action)
+        drawing_toolbar.addAction(clear_mode_action)
         
         clear_all_action = QAction("🗑 Clear All", self)
         clear_all_action.triggered.connect(self.clear_all_annotations)
-        toolbar.addAction(clear_all_action)
+        drawing_toolbar.addAction(clear_all_action)
         
-        toolbar.addSeparator()
+        # === TEXT & SEARCH TOOLBAR ===
+        self.addToolBarBreak()
+        text_toolbar = QToolBar("Text & Search")
+        text_toolbar.setIconSize(QSize(24, 24))
+        self.addToolBar(text_toolbar)
         
-        # Save annotations
-        save_action = QAction("Save PDF", self)
-        save_action.setShortcut(QKeySequence.Save)
-        save_action.triggered.connect(self.save_with_annotations)
-        toolbar.addAction(save_action)
+        # Text selection
+        select_text_action = QAction("📋 Select Text", self)
+        select_text_action.setCheckable(True)
+        select_text_action.triggered.connect(lambda: self.set_drawing_mode('select_text'))
+        text_toolbar.addAction(select_text_action)
+        self.select_text_action = select_text_action
         
-        toolbar.addSeparator()
-        
-        # Print
-        print_action = QAction("Print", self)
-        print_action.setShortcut(QKeySequence.Print)
-        print_action.triggered.connect(self.print_pdf)
-        toolbar.addAction(print_action)
-        
-        toolbar.addSeparator()
-        
-        # Fullscreen
-        fullscreen_action = QAction("Fullscreen", self)
-        fullscreen_action.setShortcut(Qt.Key_F11)
-        fullscreen_action.setCheckable(True)
-        fullscreen_action.triggered.connect(self.toggle_fullscreen)
-        toolbar.addAction(fullscreen_action)
-        self.fullscreen_action = fullscreen_action
-        
-        toolbar.addSeparator()
+        text_toolbar.addSeparator()
         
         # Search
-        toolbar.addWidget(QLabel("  Search: "))
+        text_toolbar.addWidget(QLabel("  Search: "))
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Find text...")
         self.search_input.setMaximumWidth(200)
         self.search_input.returnPressed.connect(self.search_text)
-        toolbar.addWidget(self.search_input)
+        text_toolbar.addWidget(self.search_input)
         
-        search_action = QAction("Find", self)
+        search_action = QAction("🔍 Find", self)
         search_action.setShortcut(QKeySequence.Find)
         search_action.triggered.connect(self.search_text)
-        toolbar.addAction(search_action)
+        text_toolbar.addAction(search_action)
         
-        search_next_action = QAction("Next", self)
+        search_next_action = QAction("▶ Next", self)
         search_next_action.setShortcut(QKeySequence.FindNext)
         search_next_action.triggered.connect(self.search_next)
-        toolbar.addAction(search_next_action)
+        text_toolbar.addAction(search_next_action)
     
     def _setup_sidebar(self):
         """Setup thumbnail sidebar"""
@@ -549,8 +566,9 @@ class MainWindow(QMainWindow):
         widget.set_zoom(self.zoom_level)
         widget.doc_path = self.doc_path  # Set document path for text extraction
         
-        # Connect annotation signal
+        # Connect annotation signals
         widget.annotation_added.connect(self._on_annotation_added)
+        widget.annotation_removed.connect(self._on_annotation_removed)
         
         # Set initial size based on PDF page dimensions
         try:
@@ -1019,6 +1037,21 @@ class MainWindow(QMainWindow):
             widget.update()  # Force repaint
         
         self.status_label.setText(f"Annotation added to page {page_num + 1} (Total: {len(self.annotation_manager.annotations)})")
+    
+    def _on_annotation_removed(self, page_num, annotation):
+        """Handle annotation removed from widget"""
+        # Remove from annotation manager
+        if annotation in self.annotation_manager.annotations:
+            self.annotation_manager.annotations.remove(annotation)
+            
+            # Update all widgets on this page to reflect the removal
+            if page_num in self.page_widgets:
+                widget = self.page_widgets[page_num]
+                annotations = self.annotation_manager.get_annotations_for_page(page_num)
+                widget.set_annotations(annotations)
+                widget.update()
+            
+            self.status_label.setText(f"Annotation removed from page {page_num + 1} (Total: {len(self.annotation_manager.annotations)})")
     
     def save_with_annotations(self):
         """Save PDF with annotations"""
