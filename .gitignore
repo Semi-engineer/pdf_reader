@@ -136,3 +136,6 @@ Thumbs.db
 # Application specific
 .pdf_viewer_settings.json
 *.pdf
+
+# config
+config/

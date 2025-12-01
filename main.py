@@ -12,12 +12,26 @@ from PySide6.QtCore import Qt
 from main_window import MainWindow
 
 
+def get_app_dir():
+    """Get application directory (where exe is located)"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        return Path(sys.executable).parent
+    else:
+        # Running as script
+        return Path(__file__).parent
+
+
 def load_settings():
     """Load application settings"""
-    settings_path = Path.home() / ".doclens_settings.json"
+    # Create config folder if not exists
+    config_dir = get_app_dir() / "config"
+    config_dir.mkdir(exist_ok=True)
+    
+    settings_path = config_dir / "settings.json"
     if settings_path.exists():
         try:
-            with open(settings_path, 'r') as f:
+            with open(settings_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except:
             pass
@@ -26,10 +40,14 @@ def load_settings():
 
 def save_settings(settings):
     """Save application settings"""
-    settings_path = Path.home() / ".doclens_settings.json"
+    # Create config folder if not exists
+    config_dir = get_app_dir() / "config"
+    config_dir.mkdir(exist_ok=True)
+    
+    settings_path = config_dir / "settings.json"
     try:
-        with open(settings_path, 'w') as f:
-            json.dump(settings, f, indent=2)
+        with open(settings_path, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
     except:
         pass
 

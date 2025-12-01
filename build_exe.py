@@ -30,7 +30,7 @@ args = [
     'main.py',
     f'--name={app_name}',
     '--windowed',  # No console window
-    '--onefile',   # Single executable
+    '--onedir',    # Directory with dependencies (faster startup)
     '--clean',
     '--noconfirm',
     

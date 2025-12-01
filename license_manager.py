@@ -7,6 +7,7 @@ import json
 import hashlib
 import datetime
 import os
+import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 import requests
@@ -18,7 +19,20 @@ class LicenseManager:
     def __init__(self, config_path: str = "build_config.json"):
         self.config_path = config_path
         self.config = self._load_config()
-        self.license_file = Path.home() / ".doclens_license"
+        
+        # Get application directory
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            app_dir = Path(sys.executable).parent
+        else:
+            # Running as script
+            app_dir = Path(__file__).parent
+        
+        # Create config folder if not exists
+        config_dir = app_dir / "config"
+        config_dir.mkdir(exist_ok=True)
+        
+        self.license_file = config_dir / "license.json"
         
     def _load_config(self) -> Dict[str, Any]:
         """Load build configuration"""
