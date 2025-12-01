@@ -186,9 +186,13 @@ class MainWindow(QMainWindow):
         toolbar.addAction(pen_action)
         self.pen_action = pen_action
         
-        clear_action = QAction("Clear", self)
-        clear_action.triggered.connect(self.clear_drawing_mode)
-        toolbar.addAction(clear_action)
+        clear_mode_action = QAction("⊗ Clear Mode", self)
+        clear_mode_action.triggered.connect(self.clear_drawing_mode)
+        toolbar.addAction(clear_mode_action)
+        
+        clear_all_action = QAction("🗑 Clear All", self)
+        clear_all_action.triggered.connect(self.clear_all_annotations)
+        toolbar.addAction(clear_all_action)
         
         toolbar.addSeparator()
         
@@ -855,7 +859,7 @@ class MainWindow(QMainWindow):
             widget.set_drawing_mode(mode, color)
     
     def clear_drawing_mode(self):
-        """Clear drawing mode"""
+        """Clear drawing mode (stop drawing)"""
         self.highlight_action.setChecked(False)
         self.rectangle_action.setChecked(False)
         self.pen_action.setChecked(False)
@@ -863,7 +867,31 @@ class MainWindow(QMainWindow):
         for widget in self.page_widgets.values():
             widget.set_drawing_mode(None)
         
-        self.status_label.setText("Ready")
+        self.status_label.setText("Drawing mode cleared")
+    
+    def clear_all_annotations(self):
+        """Clear all annotations"""
+        if not self.annotation_manager.annotations:
+            self.status_label.setText("No annotations to clear")
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Clear All Annotations",
+            f"Are you sure you want to clear all {len(self.annotation_manager.annotations)} annotations?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.annotation_manager.clear_annotations()
+            
+            # Clear from all widgets
+            for widget in self.page_widgets.values():
+                widget.set_annotations([])
+                widget.update()
+            
+            self.status_label.setText("All annotations cleared")
     
     def _on_annotation_added(self, page_num, rect, color, annotation_type):
         """Handle annotation added from widget"""

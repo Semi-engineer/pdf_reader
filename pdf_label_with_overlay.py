@@ -232,27 +232,9 @@ class PDFLabelWithOverlay(QLabel):
         if not self.pixmap() or self.pixmap().isNull():
             return widget_pos
         
-        # Calculate pixmap offset due to alignment
-        pixmap_width = self.pixmap().width()
-        pixmap_height = self.pixmap().height()
-        widget_width = self.width()
-        widget_height = self.height()
-        
-        # Center alignment offset (only if widget is larger than pixmap)
-        offset_x = max(0, (widget_width - pixmap_width) / 2.0)
-        offset_y = max(0, (widget_height - pixmap_height) / 2.0)
-        
-        # Adjust position
-        adjusted = QPointF(
-            widget_pos.x() - offset_x,
-            widget_pos.y() - offset_y
-        )
-        
-        # Clamp to pixmap bounds
-        adjusted.setX(max(0, min(pixmap_width, adjusted.x())))
-        adjusted.setY(max(0, min(pixmap_height, adjusted.y())))
-        
-        return adjusted
+        # Widget has fixed size = pixmap size, so no offset needed
+        # Just return the position as-is
+        return widget_pos
     
     def _convert_widget_rect_to_pdf(self, widget_rect):
         """Convert widget coordinate rect to PDF coordinates (as QRectF with PDF scale)"""
