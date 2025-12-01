@@ -5,7 +5,8 @@ Main Window - Primary application window with all UI components
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                                QToolBar, QStatusBar, QScrollArea, QListWidget,
                                QListWidgetItem, QDockWidget, QFileDialog, QLineEdit,
-                               QPushButton, QLabel, QMessageBox, QSpinBox, QComboBox)
+                               QPushButton, QLabel, QMessageBox, QSpinBox, QComboBox,
+                               QColorDialog)
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QAction, QKeySequence, QPixmap, QIcon, QColor
 import fitz
@@ -17,6 +18,7 @@ from thumbnail_manager import ThumbnailManager
 from search_manager import SearchManager
 from annotation_manager import AnnotationManager
 from pdf_label_with_overlay import PDFLabelWithOverlay
+from tool_palette import ToolPalette
 
 
 class MainWindow(QMainWindow):
@@ -45,9 +47,15 @@ class MainWindow(QMainWindow):
         # Page widgets
         self.page_widgets = {}
         
+        # Tool Palette
+        self.tool_palette = None
+        
         # Setup UI
         self._setup_ui()
         self._setup_connections()
+        
+        # Create and show tool palette
+        self._setup_tool_palette()
         
         # Restore settings
         if self.settings.get('sidebar_visible', True):
@@ -103,6 +111,17 @@ class MainWindow(QMainWindow):
         open_action.setShortcut(QKeySequence.Open)
         open_action.triggered.connect(self.open_file_dialog)
         file_toolbar.addAction(open_action)
+        
+        file_toolbar.addSeparator()
+        
+        # Tool Palette Toggle
+        palette_action = QAction("🎨 Tools", self)
+        palette_action.setCheckable(True)
+        palette_action.setChecked(True)
+        palette_action.setShortcut("T")
+        palette_action.triggered.connect(self._toggle_tool_palette)
+        file_toolbar.addAction(palette_action)
+        self.palette_action = palette_action
         
         file_toolbar.addSeparator()
         
@@ -197,6 +216,40 @@ class MainWindow(QMainWindow):
         annotation_toolbar = QToolBar("Annotations")
         annotation_toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(annotation_toolbar)
+        
+        # Color Picker
+        annotation_toolbar.addWidget(QLabel("  Color: "))
+        
+        # Preset colors
+        preset_colors = [
+            ("Yellow", QColor(255, 255, 0, 100)),
+            ("Red", QColor(255, 0, 0, 200)),
+            ("Blue", QColor(0, 0, 255, 200)),
+            ("Green", QColor(0, 200, 0, 200)),
+            ("Black", QColor(0, 0, 0, 255)),
+        ]
+        
+        for name, color in preset_colors:
+            btn = QPushButton()
+            btn.setFixedSize(25, 25)
+            btn.setStyleSheet(
+                f"background-color: rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()}); "
+                f"border: 1px solid #666; border-radius: 3px;"
+            )
+            btn.setToolTip(name)
+            btn.clicked.connect(lambda checked, c=color: self._set_color(c))
+            annotation_toolbar.addWidget(btn)
+        
+        # Custom color picker button
+        self.color_button = QPushButton("...")
+        self.color_button.setFixedSize(30, 25)
+        self.current_color = QColor(255, 255, 0, 100)  # Default yellow
+        self.color_button.setStyleSheet("border: 2px solid #333; font-weight: bold;")
+        self.color_button.setToolTip("Choose custom color")
+        self.color_button.clicked.connect(self._choose_color)
+        annotation_toolbar.addWidget(self.color_button)
+        
+        annotation_toolbar.addSeparator()
         
         # Highlight & Rectangle
         highlight_action = QAction("🖍 Highlight", self)
@@ -361,6 +414,45 @@ class MainWindow(QMainWindow):
         # Scroll area viewport change
         self.scroll_area.verticalScrollBar().valueChanged.connect(self._on_scroll)
     
+    def _setup_tool_palette(self):
+        """Setup floating tool palette"""
+        self.tool_palette = ToolPalette(self)
+        
+        # Connect signals
+        self.tool_palette.tool_selected.connect(self._on_palette_tool_selected)
+        self.tool_palette.color_changed.connect(self._on_palette_color_changed)
+        
+        # Position palette at right side of window
+        palette_x = self.width() - self.tool_palette.width() - 20
+        palette_y = 100
+        self.tool_palette.move(palette_x, palette_y)
+        
+        # Show palette
+        self.tool_palette.show()
+    
+    def _on_palette_tool_selected(self, tool):
+        """Handle tool selection from palette"""
+        if tool is None:
+            self.clear_drawing_mode()
+        else:
+            self.set_drawing_mode(tool)
+    
+    def _on_palette_color_changed(self, color):
+        """Handle color change from palette"""
+        self.current_color = color
+        
+        # Update all widgets with new color
+        for widget in self.page_widgets.values():
+            if widget.drawing_mode:
+                widget.set_drawing_mode(widget.drawing_mode, color)
+    
+    def _toggle_tool_palette(self, checked):
+        """Toggle tool palette visibility"""
+        if self.tool_palette:
+            if checked:
+                self.tool_palette.show()
+            else:
+                self.tool_palette.hide()
 
     def open_file_dialog(self):
         """Open file dialog to select PDF"""
@@ -939,34 +1031,34 @@ class MainWindow(QMainWindow):
         self.erase_action.setChecked(False)
         self.select_text_action.setChecked(False)
         
-        # Set color based on mode
+        # Use current selected color for drawing modes
         if mode == 'highlight':
             self.highlight_action.setChecked(True)
-            color = QColor(255, 255, 0, 100)  # Yellow
+            color = self.current_color
             self.status_label.setText("Highlight mode: Click and drag to highlight")
         elif mode == 'rectangle':
             self.rectangle_action.setChecked(True)
-            color = QColor(255, 0, 0, 200)  # Red
+            color = self.current_color
             self.status_label.setText("Rectangle mode: Click and drag to draw rectangle")
         elif mode == 'pen':
             self.pen_action.setChecked(True)
-            color = QColor(0, 0, 255, 255)  # Blue
+            color = self.current_color
             self.status_label.setText("Pen mode: Click and drag to draw")
         elif mode == 'line':
             self.line_action.setChecked(True)
-            color = QColor(0, 0, 0, 255)  # Black
+            color = self.current_color
             self.status_label.setText("Line mode: Click and drag to draw line")
         elif mode == 'arrow':
             self.arrow_action.setChecked(True)
-            color = QColor(255, 0, 0, 255)  # Red
+            color = self.current_color
             self.status_label.setText("Arrow mode: Click and drag to draw arrow")
         elif mode == 'circle':
             self.circle_action.setChecked(True)
-            color = QColor(0, 128, 0, 255)  # Green
+            color = self.current_color
             self.status_label.setText("Circle mode: Click and drag to draw circle")
         elif mode == 'text':
             self.text_action.setChecked(True)
-            color = QColor(0, 0, 0, 255)  # Black
+            color = self.current_color
             self.status_label.setText("Text mode: Click to add text")
         elif mode == 'erase':
             self.erase_action.setChecked(True)
@@ -983,6 +1075,25 @@ class MainWindow(QMainWindow):
         # Set mode on all page widgets
         for widget in self.page_widgets.values():
             widget.set_drawing_mode(mode, color)
+    
+    def _set_color(self, color):
+        """Set annotation color from preset"""
+        self.current_color = color
+        
+        # Update all widgets with new color
+        for widget in self.page_widgets.values():
+            if widget.drawing_mode:
+                widget.set_drawing_mode(widget.drawing_mode, color)
+        
+        self.status_label.setText(f"Color changed")
+    
+    def _choose_color(self):
+        """Open color picker dialog"""
+        color = QColorDialog.getColor(self.current_color, self, "Choose Annotation Color",
+                                      QColorDialog.ShowAlphaChannel)
+        
+        if color.isValid():
+            self._set_color(color)
     
     def clear_drawing_mode(self):
         """Clear drawing mode (stop drawing)"""
