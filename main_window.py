@@ -68,12 +68,20 @@ class MainWindow(QMainWindow):
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(False)
         self.scroll_area.setAlignment(Qt.AlignCenter)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         
         self.scroll_widget = QWidget()
+        from PySide6.QtWidgets import QSizePolicy
+        self.scroll_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        
         self.scroll_layout = QVBoxLayout(self.scroll_widget)
         self.scroll_layout.setSpacing(10)
         self.scroll_layout.setContentsMargins(20, 20, 20, 20)
+        self.scroll_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.scroll_layout.setSizeConstraint(QVBoxLayout.SetMinAndMaxSize)
         
+        self.scroll_widget.setLayout(self.scroll_layout)
         self.scroll_area.setWidget(self.scroll_widget)
         self.setCentralWidget(self.scroll_area)
         
@@ -208,10 +216,32 @@ class MainWindow(QMainWindow):
         self.sidebar_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         
         self.thumbnail_list = QListWidget()
-        self.thumbnail_list.setViewMode(QListWidget.IconMode)
-        self.thumbnail_list.setIconSize(QSize(150, 200))
-        self.thumbnail_list.setSpacing(10)
+        # Use ListMode for vertical list instead of IconMode (grid)
+        self.thumbnail_list.setViewMode(QListWidget.ListMode)
+        self.thumbnail_list.setIconSize(QSize(120, 160))
+        self.thumbnail_list.setSpacing(5)
         self.thumbnail_list.setMovement(QListWidget.Static)
+        self.thumbnail_list.setResizeMode(QListWidget.Adjust)
+        # Style for better appearance
+        self.thumbnail_list.setStyleSheet("""
+            QListWidget {
+                background-color: #f5f5f5;
+                border: none;
+            }
+            QListWidget::item {
+                padding: 5px;
+                border: 1px solid #ddd;
+                background-color: white;
+                margin: 2px;
+            }
+            QListWidget::item:selected {
+                background-color: #e3f2fd;
+                border: 2px solid #2196f3;
+            }
+            QListWidget::item:hover {
+                background-color: #f0f0f0;
+            }
+        """)
         self.thumbnail_list.itemClicked.connect(self._on_thumbnail_clicked)
         
         self.sidebar_dock.setWidget(self.thumbnail_list)
@@ -306,8 +336,11 @@ class MainWindow(QMainWindow):
             # Generate thumbnails
             self._generate_thumbnails()
             
-            # Render pages
+            # Render pages (this will create all placeholder widgets)
             self._render_visible_pages()
+            
+            # Force update container size for correct scrollbar
+            QTimer.singleShot(100, self._update_container_size)
             
             self.status_label.setText(f"Loaded: {os.path.basename(file_path)}")
             self._update_page_label()
@@ -344,7 +377,7 @@ class MainWindow(QMainWindow):
         self.goto_page(page_num)
     
     def _render_visible_pages(self):
-        """Render pages visible in viewport"""
+        """Render pages visible in viewport (Lazy Loading)"""
         if not self.doc:
             return
         
@@ -361,17 +394,16 @@ class MainWindow(QMainWindow):
                     item.widget().deleteLater()
             self.page_widgets.clear()
         else:
-            # Continuous scroll - render current and nearby pages
-            pages_to_render = []
-            for i in range(max(0, self.current_page - 2), min(len(self.doc), self.current_page + 5)):
-                pages_to_render.append(i)
-        
-        # Render pages
-        for page_num in pages_to_render:
-            # Only create widget if it doesn't exist
-            if page_num not in self.page_widgets:
-                self._create_page_widget(page_num)
+            # Create placeholder widgets for ALL pages first (lightweight)
+            if len(self.page_widgets) == 0:
+                for i in range(len(self.doc)):
+                    self._create_page_widget(i)
             
+            # Only render visible pages + buffer
+            pages_to_render = self._get_visible_pages()
+        
+        # Render only the visible pages
+        for page_num in pages_to_render:
             # Check cache first
             rotation = self.page_rotations.get(page_num, self.rotation)
             cache_key = (page_num, self.zoom_level, rotation)
@@ -380,19 +412,60 @@ class MainWindow(QMainWindow):
             if cached_pixmap:
                 self._display_page(page_num, cached_pixmap)
             else:
-                # Request render
-                self.render_worker.render_page(self.doc_path, page_num, self.zoom_level, rotation)
+                # Request render only if not already rendering
+                if page_num not in getattr(self, '_rendering_pages', set()):
+                    if not hasattr(self, '_rendering_pages'):
+                        self._rendering_pages = set()
+                    self._rendering_pages.add(page_num)
+                    self.render_worker.render_page(self.doc_path, page_num, self.zoom_level, rotation)
+        
+        # Update container size after adding all widgets
+        self._update_container_size()
+    
+    def _get_visible_pages(self):
+        """Get list of pages that are visible or near visible area"""
+        if not self.doc:
+            return []
+        
+        # Get scroll position
+        scrollbar = self.scroll_area.verticalScrollBar()
+        scroll_pos = scrollbar.value()
+        viewport_height = self.scroll_area.viewport().height()
+        
+        # Calculate which pages are visible
+        visible_pages = []
+        current_y = self.scroll_layout.contentsMargins().top()
+        
+        for page_num in range(len(self.doc)):
+            if page_num in self.page_widgets:
+                widget = self.page_widgets[page_num]
+                widget_height = widget.height()
+                
+                # Check if page is in viewport (with buffer)
+                buffer = viewport_height  # Load 1 viewport above and below
+                if (current_y + widget_height + buffer >= scroll_pos and 
+                    current_y - buffer <= scroll_pos + viewport_height):
+                    visible_pages.append(page_num)
+                
+                current_y += widget_height + self.scroll_layout.spacing()
+        
+        # If no pages found (initial load), load first few pages
+        if not visible_pages:
+            visible_pages = list(range(min(3, len(self.doc))))
+        
+        return visible_pages
     
     def _create_page_widget(self, page_num):
         """Create widget for a page"""
         if page_num in self.page_widgets and not self.two_page_mode:
             return
         
-        # Use QLabel instead of custom widget for simplicity
+        # Create simple QLabel for now - simpler and more reliable
         from PySide6.QtWidgets import QLabel
         widget = QLabel()
         widget.setAlignment(Qt.AlignCenter)
         widget.setStyleSheet("background-color: white; border: 1px solid #ccc;")
+        widget.setScaledContents(False)
         
         # Set initial size based on PDF page dimensions
         try:
@@ -417,15 +490,16 @@ class MainWindow(QMainWindow):
             if not hasattr(self, 'two_page_layout'):
                 self.two_page_layout = QHBoxLayout()
                 self.scroll_layout.addLayout(self.two_page_layout)
-            self.two_page_layout.addWidget(widget)
+            self.two_page_layout.addWidget(widget, 0, Qt.AlignCenter)
         else:
             # Add to vertical layout
-            self.scroll_layout.addWidget(widget)
-        
-        # Ensure widget is visible
-        widget.show()
+            self.scroll_layout.addWidget(widget, 0, Qt.AlignHCenter)
         
         self.page_widgets[page_num] = widget
+        
+        # Force visibility
+        widget.setVisible(True)
+        widget.show()
     
     def _display_page(self, page_num, pixmap):
         """Display rendered page"""
@@ -433,9 +507,14 @@ class MainWindow(QMainWindow):
             widget = self.page_widgets[page_num]
             widget.setPixmap(pixmap)
             widget.setFixedSize(pixmap.size())
+            widget.update()  # Force repaint
     
     def _on_page_rendered(self, page_num, pixmap):
         """Handle page render completion"""
+        # Remove from rendering set
+        if hasattr(self, '_rendering_pages') and page_num in self._rendering_pages:
+            self._rendering_pages.remove(page_num)
+        
         # Cache the pixmap
         rotation = self.page_rotations.get(page_num, self.rotation)
         cache_key = (page_num, self.zoom_level, rotation)
@@ -444,20 +523,59 @@ class MainWindow(QMainWindow):
         # Display the page
         self._display_page(page_num, pixmap)
         
+        # Update container size
+        self._update_container_size()
+        
         self.status_label.setText("Ready")
+    
+    def _update_container_size(self):
+        """Update scroll widget size to fit all page widgets"""
+        if not self.page_widgets or not self.doc:
+            return
+        
+        # Calculate total height and max width from ALL pages
+        total_height = 0
+        max_width = 0
+        
+        # Iterate through all pages in order
+        for page_num in range(len(self.doc)):
+            if page_num in self.page_widgets:
+                widget = self.page_widgets[page_num]
+                total_height += widget.height()
+                max_width = max(max_width, widget.width())
+        
+        # Add spacing and margins
+        spacing = self.scroll_layout.spacing() * (len(self.doc) - 1)
+        margins = self.scroll_layout.contentsMargins()
+        
+        total_height += spacing + margins.top() + margins.bottom()
+        max_width += margins.left() + margins.right()
+        
+        # Set minimum size for container to show correct scrollbar
+        self.scroll_widget.setMinimumSize(max_width, total_height)
+        
+        # Force update
+        self.scroll_widget.updateGeometry()
+        self.scroll_area.updateGeometry()
     
     def _on_render_error(self, page_num, error):
         """Handle render error"""
         self.status_label.setText(f"Error rendering page {page_num + 1}: {error}")
     
     def _on_scroll(self):
-        """Handle scroll event"""
+        """Handle scroll event - lazy load visible pages"""
         if not self.doc or self.two_page_mode:
             return
         
-        # Determine current page based on scroll position
-        # This is a simplified version - could be improved
-        QTimer.singleShot(100, self._render_visible_pages)
+        # Cancel previous timer if exists
+        if hasattr(self, '_scroll_timer') and self._scroll_timer.isActive():
+            self._scroll_timer.stop()
+        
+        # Debounce scroll events - render after 150ms of no scrolling
+        self._scroll_timer = QTimer()
+        self._scroll_timer.setSingleShot(True)
+        self._scroll_timer.timeout.connect(self._render_visible_pages)
+        self._scroll_timer.start(150)
     
     def goto_page(self, page_num):
         """Go to specific page"""
@@ -623,11 +741,12 @@ class MainWindow(QMainWindow):
             first_result = results[0]
             self.goto_page(first_result['page'])
             
-            # Update page widgets with search results
+            # Update page widgets with search results (only if they support it)
             for page_num in self.page_widgets:
                 widget = self.page_widgets[page_num]
-                page_results = self.search_manager.get_results_for_page(page_num)
-                widget.set_search_results(page_results)
+                if hasattr(widget, 'set_search_results'):
+                    page_results = self.search_manager.get_results_for_page(page_num)
+                    widget.set_search_results(page_results)
         else:
             self.status_label.setText("No results found")
     
@@ -659,9 +778,10 @@ class MainWindow(QMainWindow):
             self.rect_action.setChecked(False)
             color = None
         
-        # Set mode on all page widgets
+        # Set mode on all page widgets (only if they support it)
         for widget in self.page_widgets.values():
-            widget.set_annotation_mode(mode, color)
+            if hasattr(widget, 'set_annotation_mode'):
+                widget.set_annotation_mode(mode, color)
     
     def _on_text_selected(self, text):
         """Handle text selection"""
@@ -676,10 +796,11 @@ class MainWindow(QMainWindow):
     
     def _on_annotations_changed(self):
         """Handle annotations changed"""
-        # Update all page widgets
+        # Update all page widgets (only if they support it)
         for page_num, widget in self.page_widgets.items():
-            annotations = self.annotation_manager.get_annotations_for_page(page_num)
-            widget.set_annotations(annotations)
+            if hasattr(widget, 'set_annotations'):
+                annotations = self.annotation_manager.get_annotations_for_page(page_num)
+                widget.set_annotations(annotations)
     
     def save_copy(self):
         """Save a copy of PDF with annotations"""

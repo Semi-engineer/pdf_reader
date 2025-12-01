@@ -106,6 +106,10 @@ class PDFPageWidget(QWidget):
         # Draw page pixmap
         if self.pixmap and not self.pixmap.isNull():
             painter.drawPixmap(0, 0, self.pixmap)
+        else:
+            # Draw placeholder
+            painter.setPen(QColor(200, 200, 200))
+            painter.drawText(self.rect(), Qt.AlignCenter, f"Loading page {self.page_num + 1}...")
         
         # Draw search highlights
         if self.search_results:
