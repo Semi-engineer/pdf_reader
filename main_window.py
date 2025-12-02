@@ -464,10 +464,6 @@ class MainWindow(QMainWindow):
         
         self.tool_palette.move(palette_x, palette_y)
         
-        # Restore collapse state
-        if self.settings.get('tool_palette_collapsed', False):
-            self.tool_palette.set_collapsed(True)
-        
         # Restore color
         if 'tool_palette_color' in self.settings:
             color_data = self.settings['tool_palette_color']
@@ -478,13 +474,18 @@ class MainWindow(QMainWindow):
         # Restore tool selection
         if 'tool_palette_current_tool' in self.settings:
             tool = self.settings['tool_palette_current_tool']
-            # Restore tool selection after a short delay to ensure UI is ready
-            QTimer.singleShot(100, lambda: self.set_drawing_mode(tool))
+            if tool:  # Only restore if tool is not None
+                # Restore tool selection in palette
+                self.tool_palette.restore_tool_selection(tool)
+                # Also set drawing mode in main window
+                QTimer.singleShot(100, lambda: self.set_drawing_mode(tool))
         
         # Restore visibility from settings
         palette_visible = self.settings.get('tool_palette_visible', True)
+        self.tool_palette.user_wants_visible = palette_visible
         if palette_visible:
             self.tool_palette.show()
+            self.palette_action.setChecked(True)
         else:
             self.tool_palette.hide()
             self.palette_action.setChecked(False)
@@ -508,6 +509,7 @@ class MainWindow(QMainWindow):
     def _toggle_tool_palette(self, checked):
         """Toggle tool palette visibility"""
         if self.tool_palette:
+            self.tool_palette.user_wants_visible = checked
             if checked:
                 self.tool_palette.show()
             else:
@@ -1296,16 +1298,15 @@ class MainWindow(QMainWindow):
         # Save window size and position
         settings['window_geometry'] = self.saveGeometry().toBase64().data().decode('utf-8')
         
-        # Save tool palette position, visibility, and collapse state
+        # Save tool palette position and visibility
         if self.tool_palette:
             settings['tool_palette_x'] = self.tool_palette.x()
             settings['tool_palette_y'] = self.tool_palette.y()
-            settings['tool_palette_visible'] = self.tool_palette.isVisible()
-            settings['tool_palette_collapsed'] = self.tool_palette.is_collapsed
+            # Use user preference instead of actual visibility
+            settings['tool_palette_visible'] = self.tool_palette.user_wants_visible
             
-            # Save current tool selection
-            if self.tool_palette.current_tool:
-                settings['tool_palette_current_tool'] = self.tool_palette.current_tool
+            # Save current tool selection (even if None)
+            settings['tool_palette_current_tool'] = self.tool_palette.current_tool
             
             # Save current color
             color = self.tool_palette.current_color

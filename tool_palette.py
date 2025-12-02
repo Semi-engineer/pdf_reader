@@ -25,7 +25,7 @@ class ToolPalette(QFrame):
         self.current_color = QColor(255, 255, 0, 100)
         self.dragging = False
         self.drag_position = QPoint()
-        self.is_collapsed = False
+        self.user_wants_visible = True  # Track user preference separately from actual visibility
         
         # Set window icon same as main application
         if parent:
@@ -46,18 +46,20 @@ class ToolPalette(QFrame):
         container.setStyleSheet("""
             QFrame#paletteContainer {
                 background-color: rgba(45, 45, 45, 240);
-                border-radius: 12px;
+                border-radius: 5px;
                 border: 1px solid rgba(255, 255, 255, 0.1);
             }
             QPushButton {
                 background-color: rgba(70, 70, 70, 200);
                 border: none;
-                border-radius: 6px;
+                border-radius: 4px;
                 color: white;
-                font-size: 18px;
-                padding: 8px;
-                min-width: 40px;
-                min-height: 40px;
+                font-size: 14px;
+                padding: 4px;
+                min-width: 32px;
+                min-height: 32px;
+                max-width: 32px;
+                max-height: 32px;
             }
             QPushButton:hover {
                 background-color: rgba(90, 90, 90, 255);
@@ -75,7 +77,7 @@ class ToolPalette(QFrame):
         
         layout = QVBoxLayout(container)
         layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout.setSpacing(12)
         
         # Title bar (for dragging)
         title_bar = QFrame()
@@ -103,26 +105,6 @@ class ToolPalette(QFrame):
         
         title_layout.addStretch()
         
-        # Collapse/Expand button
-        self.collapse_btn = QPushButton("▼")
-        self.collapse_btn.setFixedSize(24, 24)
-        self.collapse_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(100, 100, 100, 200);
-                font-size: 12px;
-                font-weight: bold;
-                min-width: 24px;
-                min-height: 24px;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: rgba(120, 120, 120, 255);
-            }
-        """)
-        self.collapse_btn.setToolTip("Collapse/Expand")
-        self.collapse_btn.clicked.connect(self._toggle_collapse)
-        title_layout.addWidget(self.collapse_btn)
-        
         # Close button
         close_btn = QPushButton("×")
         close_btn.setFixedSize(24, 24)
@@ -139,7 +121,7 @@ class ToolPalette(QFrame):
                 background-color: rgba(255, 50, 50, 255);
             }
         """)
-        close_btn.clicked.connect(self.hide)
+        close_btn.clicked.connect(self._on_close_clicked)
         title_layout.addWidget(close_btn)
         
         layout.addWidget(title_bar)
@@ -148,7 +130,7 @@ class ToolPalette(QFrame):
         self.content_widget = QWidget()
         content_layout = QVBoxLayout(self.content_widget)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(8)
+        content_layout.setSpacing(10)
         
         # Separator
         separator = QFrame()
@@ -158,11 +140,13 @@ class ToolPalette(QFrame):
         content_layout.addWidget(separator)
         
         # Color section
-        color_layout = QHBoxLayout()
-        color_layout.setSpacing(4)
-        
         color_label = QLabel("Color:")
-        color_layout.addWidget(color_label)
+        color_label.setStyleSheet("font-weight: bold; font-size: 10px;")
+        content_layout.addWidget(color_label)
+        
+        # Color buttons in grid (2 rows)
+        color_grid = QHBoxLayout()
+        color_grid.setSpacing(6)
         
         # Preset colors
         self.preset_colors = [
@@ -175,32 +159,32 @@ class ToolPalette(QFrame):
         
         for color in self.preset_colors:
             btn = QPushButton()
-            btn.setFixedSize(28, 28)
+            btn.setFixedSize(24, 24)
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()});
                     border: 2px solid rgba(255, 255, 255, 0.3);
-                    border-radius: 14px;
-                    min-width: 28px;
-                    min-height: 28px;
+                    border-radius: 12px;
+                    min-width: 24px;
+                    min-height: 24px;
                 }}
                 QPushButton:hover {{
                     border: 2px solid rgba(255, 255, 255, 0.8);
                 }}
             """)
             btn.clicked.connect(lambda checked, c=color: self._set_color(c))
-            color_layout.addWidget(btn)
+            color_grid.addWidget(btn)
         
         # Custom color button
         custom_color_btn = QPushButton()
         custom_color_btn.setIcon(IconManager.get_icon('palette', '#9C27B0'))
-        custom_color_btn.setIconSize(QSize(20, 20))
-        custom_color_btn.setFixedSize(28, 28)
+        custom_color_btn.setIconSize(QSize(14, 14))
+        custom_color_btn.setFixedSize(24, 24)
         custom_color_btn.setToolTip("Custom color")
         custom_color_btn.clicked.connect(self._choose_custom_color)
-        color_layout.addWidget(custom_color_btn)
+        color_grid.addWidget(custom_color_btn)
         
-        content_layout.addLayout(color_layout)
+        content_layout.addLayout(color_grid)
         
         # Separator
         separator2 = QFrame()
@@ -215,10 +199,13 @@ class ToolPalette(QFrame):
         content_layout.addWidget(anno_label)
         
         anno_layout = QHBoxLayout()
-        anno_layout.setSpacing(6)
+        anno_layout.setSpacing(8)
         
         self.button_group = QButtonGroup(self)
         self.button_group.setExclusive(True)
+        
+        # Store button-to-tool mapping
+        self.tool_buttons = {}
         
         anno_tools = [
             ("highlight", "#FFEB3B", "Highlight"),
@@ -230,11 +217,12 @@ class ToolPalette(QFrame):
         for tool, color, tooltip in anno_tools:
             btn = QPushButton()
             btn.setIcon(IconManager.get_icon(tool, color))
-            btn.setIconSize(QSize(24, 24))
+            btn.setIconSize(QSize(18, 18))
             btn.setCheckable(True)
             btn.setToolTip(tooltip)
             btn.clicked.connect(lambda checked, t=tool: self._select_tool(t))
             self.button_group.addButton(btn)
+            self.tool_buttons[tool] = btn
             anno_layout.addWidget(btn)
         
         content_layout.addLayout(anno_layout)
@@ -245,7 +233,7 @@ class ToolPalette(QFrame):
         content_layout.addWidget(draw_label)
         
         draw_layout = QHBoxLayout()
-        draw_layout.setSpacing(6)
+        draw_layout.setSpacing(8)
         
         draw_tools = [
             ("pen", "#3F51B5", "Pen"),
@@ -256,11 +244,12 @@ class ToolPalette(QFrame):
         for tool, color, tooltip in draw_tools:
             btn = QPushButton()
             btn.setIcon(IconManager.get_icon(tool, color))
-            btn.setIconSize(QSize(24, 24))
+            btn.setIconSize(QSize(18, 18))
             btn.setCheckable(True)
             btn.setToolTip(tooltip)
             btn.clicked.connect(lambda checked, t=tool: self._select_tool(t))
             self.button_group.addButton(btn)
+            self.tool_buttons[tool] = btn
             draw_layout.addWidget(btn)
         
         content_layout.addLayout(draw_layout)
@@ -274,7 +263,7 @@ class ToolPalette(QFrame):
         
         # Utility tools
         util_layout = QHBoxLayout()
-        util_layout.setSpacing(6)
+        util_layout.setSpacing(8)
         
         util_tools = [
             ("select_text", "#00BCD4", "Select Text"),
@@ -285,22 +274,39 @@ class ToolPalette(QFrame):
         for tool, color, tooltip in util_tools:
             btn = QPushButton()
             btn.setIcon(IconManager.get_icon(tool, color))
-            btn.setIconSize(QSize(24, 24))
+            btn.setIconSize(QSize(18, 18))
             if tool != "clear":
                 btn.setCheckable(True)
                 self.button_group.addButton(btn)
+                self.tool_buttons[tool] = btn
             btn.setToolTip(tooltip)
             btn.clicked.connect(lambda checked, t=tool: self._select_tool(t))
             util_layout.addWidget(btn)
         
         content_layout.addLayout(util_layout)
         
+        # Ensure content widget is visible
+        self.content_widget.setVisible(True)
         layout.addWidget(self.content_widget)
         
         main_layout.addWidget(container)
         
-        # Set fixed width
-        self.setFixedWidth(220)
+        # Set fixed width (reduced to fit smaller buttons)
+        self.setFixedWidth(280)
+        self.setFixedHeight(400)
+    
+    def _on_close_clicked(self):
+        """Handle close button click - notify parent instead of hiding directly"""
+        # Mark that user wants to hide
+        self.user_wants_visible = False
+        # Hide the palette
+        self.hide()
+        # Notify parent to update toolbar button state
+        if self.parent():
+            # Try to uncheck the palette toggle button in parent
+            parent = self.parent()
+            if hasattr(parent, 'palette_action'):
+                parent.palette_action.setChecked(False)
     
     def _select_tool(self, tool):
         """Handle tool selection"""
@@ -331,25 +337,18 @@ class ToolPalette(QFrame):
         if color.isValid():
             self._set_color(color)
     
-    def _toggle_collapse(self):
-        """Toggle collapse/expand state"""
-        self.is_collapsed = not self.is_collapsed
+    def restore_tool_selection(self, tool):
+        """Restore tool selection from settings"""
+        if not tool or tool not in self.tool_buttons:
+            return
         
-        if self.is_collapsed:
-            self.content_widget.hide()
-            self.collapse_btn.setText("▲")
-            self.setFixedHeight(54)  # Just title bar height
-        else:
-            self.content_widget.show()
-            self.collapse_btn.setText("▼")
-            self.setFixedHeight(self.sizeHint().height())
+        # Check the corresponding button
+        btn = self.tool_buttons[tool]
+        btn.setChecked(True)
         
-        self.adjustSize()
-    
-    def set_collapsed(self, collapsed):
-        """Set collapse state"""
-        if collapsed != self.is_collapsed:
-            self._toggle_collapse()
+        # Set current tool and emit signal
+        self.current_tool = tool
+        self.tool_selected.emit(tool)
     
     def mousePressEvent(self, event):
         """Handle mouse press for dragging"""
