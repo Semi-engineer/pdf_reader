@@ -4,8 +4,9 @@ Tool Palette - Floating tool palette for annotations and drawing
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFrame, QColorDialog, QButtonGroup)
-from PySide6.QtCore import Qt, Signal, QPoint
+from PySide6.QtCore import Qt, Signal, QPoint, QSize
 from PySide6.QtGui import QColor, QCursor
+from icon_manager import IconManager
 
 
 class ToolPalette(QFrame):
@@ -83,8 +84,21 @@ class ToolPalette(QFrame):
         title_layout = QHBoxLayout(title_bar)
         title_layout.setContentsMargins(8, 0, 8, 0)
         
-        title_label = QLabel("🎨 Tools")
-        title_label.setStyleSheet("font-size: 12px; font-weight: bold; color: white;")
+        # Icon label
+        icon_label = QLabel()
+        if self.parent() and self.parent().windowIcon() and not self.parent().windowIcon().isNull():
+            # Use application icon
+            pixmap = self.parent().windowIcon().pixmap(20, 20)
+            icon_label.setPixmap(pixmap)
+        else:
+            # Fallback to emoji
+            icon_label.setText("🎨")
+            icon_label.setStyleSheet("font-size: 16px;")
+        title_layout.addWidget(icon_label)
+        
+        # Title text
+        title_label = QLabel("Tools")
+        title_label.setStyleSheet("font-size: 12px; font-weight: bold; color: white; margin-left: 4px;")
         title_layout.addWidget(title_label)
         
         title_layout.addStretch()
@@ -178,7 +192,9 @@ class ToolPalette(QFrame):
             color_layout.addWidget(btn)
         
         # Custom color button
-        custom_color_btn = QPushButton("⊕")
+        custom_color_btn = QPushButton()
+        custom_color_btn.setIcon(IconManager.get_icon('palette', '#9C27B0'))
+        custom_color_btn.setIconSize(QSize(20, 20))
         custom_color_btn.setFixedSize(28, 28)
         custom_color_btn.setToolTip("Custom color")
         custom_color_btn.clicked.connect(self._choose_custom_color)
@@ -205,14 +221,16 @@ class ToolPalette(QFrame):
         self.button_group.setExclusive(True)
         
         anno_tools = [
-            ("🖍", "highlight", "Highlight"),
-            ("▭", "rectangle", "Rectangle"),
-            ("⭕", "circle", "Circle"),
-            ("📝", "text", "Text Box"),
+            ("highlight", "#FFEB3B", "Highlight"),
+            ("rectangle", "#F44336", "Rectangle"),
+            ("circle", "#4CAF50", "Circle"),
+            ("text", "#2196F3", "Text Box"),
         ]
         
-        for icon, tool, tooltip in anno_tools:
-            btn = QPushButton(icon)
+        for tool, color, tooltip in anno_tools:
+            btn = QPushButton()
+            btn.setIcon(IconManager.get_icon(tool, color))
+            btn.setIconSize(QSize(24, 24))
             btn.setCheckable(True)
             btn.setToolTip(tooltip)
             btn.clicked.connect(lambda checked, t=tool: self._select_tool(t))
@@ -230,13 +248,15 @@ class ToolPalette(QFrame):
         draw_layout.setSpacing(6)
         
         draw_tools = [
-            ("✏", "pen", "Pen"),
-            ("📏", "line", "Line"),
-            ("➡", "arrow", "Arrow"),
+            ("pen", "#3F51B5", "Pen"),
+            ("line", "#607D8B", "Line"),
+            ("arrow", "#FF5722", "Arrow"),
         ]
         
-        for icon, tool, tooltip in draw_tools:
-            btn = QPushButton(icon)
+        for tool, color, tooltip in draw_tools:
+            btn = QPushButton()
+            btn.setIcon(IconManager.get_icon(tool, color))
+            btn.setIconSize(QSize(24, 24))
             btn.setCheckable(True)
             btn.setToolTip(tooltip)
             btn.clicked.connect(lambda checked, t=tool: self._select_tool(t))
@@ -257,13 +277,15 @@ class ToolPalette(QFrame):
         util_layout.setSpacing(6)
         
         util_tools = [
-            ("📋", "select_text", "Select Text"),
-            ("🧹", "erase", "Erase"),
-            ("⊗", "clear", "Clear Mode"),
+            ("select_text", "#00BCD4", "Select Text"),
+            ("erase", "#FF9800", "Erase"),
+            ("clear", "#9E9E9E", "Clear Mode"),
         ]
         
-        for icon, tool, tooltip in util_tools:
-            btn = QPushButton(icon)
+        for tool, color, tooltip in util_tools:
+            btn = QPushButton()
+            btn.setIcon(IconManager.get_icon(tool, color))
+            btn.setIconSize(QSize(24, 24))
             if tool != "clear":
                 btn.setCheckable(True)
                 self.button_group.addButton(btn)
