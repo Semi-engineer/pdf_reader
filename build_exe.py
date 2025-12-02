@@ -1,9 +1,9 @@
 """
-Build executable using PyInstaller for DocLens
+Build executable using Nuitka for DocLens
 Run: python build_exe.py
 """
 
-import PyInstaller.__main__
+import subprocess
 import sys
 import json
 from pathlib import Path
@@ -25,61 +25,70 @@ if edition == 'commercial':
 else:
     app_name = 'DocLens'
 
-# PyInstaller arguments
+# Nuitka arguments
 args = [
+    sys.executable,
+    '-m', 'nuitka',
     'main.py',
-    f'--name={app_name}',
-    '--windowed',  # No console window
-    '--onedir',    # Directory with dependencies (faster startup)
-    '--clean',
-    '--noconfirm',
+    '--standalone',  # Create standalone distribution
+    '--onefile',     # Single executable file (use --standalone for directory mode)
+    f'--output-filename={app_name}',
+    '--enable-plugin=pyside6',  # PySide6 plugin
+    '--assume-yes-for-downloads',  # Auto-download dependencies
+    '--remove-output',  # Clean previous builds
     
-    # Include all Python modules
-    '--hidden-import=PySide6',
-    '--hidden-import=PyMuPDF',
-    '--hidden-import=fitz',
-    '--hidden-import=Pillow',
-    '--hidden-import=PIL',
+    # Include data files
+    '--include-data-dir=icon=icon',
     
-    # Collect all submodules
-    '--collect-all=PySide6',
-    '--collect-all=fitz',
-    
-    # Additional modules
-    f'--additional-hooks-dir={script_dir}',
-    
-    # Add icon directory
-    '--add-data=icon:icon',
+    # Performance optimizations
+    '--lto=yes',  # Link Time Optimization
+    '--jobs=4',   # Parallel compilation
 ]
 
 # Platform-specific settings
 if sys.platform == 'win32':
+    args.append('--windows-disable-console')  # No console window
     # Windows icon
     icon_path = script_dir / 'icon' / 'icon.ico'
     if icon_path.exists():
-        args.append(f'--icon={icon_path}')
+        args.append(f'--windows-icon-from-ico={icon_path}')
+    # Company info (optional)
+    args.append('--windows-company-name=DocLens')
+    args.append(f'--windows-product-name={app_name}')
+    args.append('--windows-file-version=1.0.0.0')
+    args.append('--windows-product-version=1.0.0.0')
 elif sys.platform == 'darwin':
-    # macOS icon (convert from .ico if needed)
+    args.append('--macos-disable-console')  # No console window
+    # macOS icon
     icon_path = script_dir / 'icon' / 'icon.icns'
     if icon_path.exists():
-        args.append(f'--icon={icon_path}')
-    else:
-        # Try to use .ico on macOS (PyInstaller can handle it)
-        icon_path = script_dir / 'icon' / 'icon.ico'
-        if icon_path.exists():
-            args.append(f'--icon={icon_path}')
-
-# Run PyInstaller
-PyInstaller.__main__.run(args)
-
-print("\n" + "="*50)
-print("Build complete!")
-print(f"Edition: {edition}")
-print(f"Executable location: dist/{app_name}")
-if sys.platform == 'win32':
-    print(f"  Windows: dist/{app_name}.exe")
-elif sys.platform == 'darwin':
-    print(f"  macOS: dist/{app_name}.app")
+        args.append(f'--macos-app-icon={icon_path}')
+    args.append(f'--macos-app-name={app_name}')
+    args.append('--macos-create-app-bundle')
 else:
-    print(f"  Linux: dist/{app_name}")
+    args.append('--linux-icon=icon/icon.ico')
+
+# Run Nuitka
+print("Starting Nuitka build...")
+print(f"Command: {' '.join(args)}")
 print("="*50)
+
+result = subprocess.run(args, cwd=script_dir)
+
+if result.returncode == 0:
+    print("\n" + "="*50)
+    print("Build complete!")
+    print(f"Edition: {edition}")
+    if sys.platform == 'win32':
+        print(f"  Windows: {app_name}.exe")
+    elif sys.platform == 'darwin':
+        print(f"  macOS: {app_name}.app")
+    else:
+        print(f"  Linux: {app_name}")
+    print("="*50)
+else:
+    print("\n" + "="*50)
+    print("Build failed!")
+    print(f"Exit code: {result.returncode}")
+    print("="*50)
+    sys.exit(result.returncode)
