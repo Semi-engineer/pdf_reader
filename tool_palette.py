@@ -16,13 +16,19 @@ class ToolPalette(QFrame):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        # Remove Qt.Tool flag to keep it within parent window
+        self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         
         self.current_tool = None
         self.current_color = QColor(255, 255, 0, 100)
         self.dragging = False
         self.drag_position = QPoint()
+        self.is_collapsed = False
+        
+        # Set window icon same as main application
+        if parent:
+            self.setWindowIcon(parent.windowIcon())
         
         self._setup_ui()
         
@@ -83,6 +89,26 @@ class ToolPalette(QFrame):
         
         title_layout.addStretch()
         
+        # Collapse/Expand button
+        self.collapse_btn = QPushButton("▼")
+        self.collapse_btn.setFixedSize(24, 24)
+        self.collapse_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(100, 100, 100, 200);
+                font-size: 12px;
+                font-weight: bold;
+                min-width: 24px;
+                min-height: 24px;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: rgba(120, 120, 120, 255);
+            }
+        """)
+        self.collapse_btn.setToolTip("Collapse/Expand")
+        self.collapse_btn.clicked.connect(self._toggle_collapse)
+        title_layout.addWidget(self.collapse_btn)
+        
         # Close button
         close_btn = QPushButton("×")
         close_btn.setFixedSize(24, 24)
@@ -104,12 +130,18 @@ class ToolPalette(QFrame):
         
         layout.addWidget(title_bar)
         
+        # Content container (can be collapsed)
+        self.content_widget = QWidget()
+        content_layout = QVBoxLayout(self.content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(8)
+        
         # Separator
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setStyleSheet("background-color: rgba(255, 255, 255, 0.1);")
         separator.setFixedHeight(1)
-        layout.addWidget(separator)
+        content_layout.addWidget(separator)
         
         # Color section
         color_layout = QHBoxLayout()
@@ -152,19 +184,19 @@ class ToolPalette(QFrame):
         custom_color_btn.clicked.connect(self._choose_custom_color)
         color_layout.addWidget(custom_color_btn)
         
-        layout.addLayout(color_layout)
+        content_layout.addLayout(color_layout)
         
         # Separator
         separator2 = QFrame()
         separator2.setFrameShape(QFrame.HLine)
         separator2.setStyleSheet("background-color: rgba(255, 255, 255, 0.1);")
         separator2.setFixedHeight(1)
-        layout.addWidget(separator2)
+        content_layout.addWidget(separator2)
         
         # Annotation tools
         anno_label = QLabel("Annotations")
         anno_label.setStyleSheet("font-weight: bold; font-size: 11px;")
-        layout.addWidget(anno_label)
+        content_layout.addWidget(anno_label)
         
         anno_layout = QHBoxLayout()
         anno_layout.setSpacing(6)
@@ -187,12 +219,12 @@ class ToolPalette(QFrame):
             self.button_group.addButton(btn)
             anno_layout.addWidget(btn)
         
-        layout.addLayout(anno_layout)
+        content_layout.addLayout(anno_layout)
         
         # Drawing tools
         draw_label = QLabel("Drawing")
         draw_label.setStyleSheet("font-weight: bold; font-size: 11px;")
-        layout.addWidget(draw_label)
+        content_layout.addWidget(draw_label)
         
         draw_layout = QHBoxLayout()
         draw_layout.setSpacing(6)
@@ -211,14 +243,14 @@ class ToolPalette(QFrame):
             self.button_group.addButton(btn)
             draw_layout.addWidget(btn)
         
-        layout.addLayout(draw_layout)
+        content_layout.addLayout(draw_layout)
         
         # Separator
         separator3 = QFrame()
         separator3.setFrameShape(QFrame.HLine)
         separator3.setStyleSheet("background-color: rgba(255, 255, 255, 0.1);")
         separator3.setFixedHeight(1)
-        layout.addWidget(separator3)
+        content_layout.addWidget(separator3)
         
         # Utility tools
         util_layout = QHBoxLayout()
@@ -239,7 +271,9 @@ class ToolPalette(QFrame):
             btn.clicked.connect(lambda checked, t=tool: self._select_tool(t))
             util_layout.addWidget(btn)
         
-        layout.addLayout(util_layout)
+        content_layout.addLayout(util_layout)
+        
+        layout.addWidget(self.content_widget)
         
         main_layout.addWidget(container)
         
@@ -275,19 +309,56 @@ class ToolPalette(QFrame):
         if color.isValid():
             self._set_color(color)
     
+    def _toggle_collapse(self):
+        """Toggle collapse/expand state"""
+        self.is_collapsed = not self.is_collapsed
+        
+        if self.is_collapsed:
+            self.content_widget.hide()
+            self.collapse_btn.setText("▲")
+            self.setFixedHeight(54)  # Just title bar height
+        else:
+            self.content_widget.show()
+            self.collapse_btn.setText("▼")
+            self.setFixedHeight(self.sizeHint().height())
+        
+        self.adjustSize()
+    
+    def set_collapsed(self, collapsed):
+        """Set collapse state"""
+        if collapsed != self.is_collapsed:
+            self._toggle_collapse()
+    
     def mousePressEvent(self, event):
         """Handle mouse press for dragging"""
         if event.button() == Qt.LeftButton:
-            # Check if clicking on title bar area (top 30px)
+            # Check if clicking on title bar area (top 42px)
             if event.position().y() < 42:
                 self.dragging = True
-                self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                self.drag_position = event.position().toPoint()
                 event.accept()
     
     def mouseMoveEvent(self, event):
         """Handle mouse move for dragging"""
         if self.dragging and event.buttons() == Qt.LeftButton:
-            self.move(event.globalPosition().toPoint() - self.drag_position)
+            # Calculate new position relative to parent
+            new_pos = self.mapToParent(event.position().toPoint() - self.drag_position)
+            
+            # Constrain to parent window bounds
+            if self.parent():
+                parent_width = self.parent().width()
+                parent_height = self.parent().height()
+                palette_width = self.width()
+                palette_height = self.height()
+                
+                # Keep within parent bounds
+                x = max(0, min(new_pos.x(), parent_width - palette_width))
+                y = max(0, min(new_pos.y(), parent_height - palette_height))
+                
+                self.move(x, y)
+            else:
+                self.move(new_pos)
+            
             event.accept()
     
     def mouseReleaseEvent(self, event):

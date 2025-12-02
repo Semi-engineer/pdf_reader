@@ -61,11 +61,32 @@ class MainWindow(QMainWindow):
         # Restore settings
         if self.settings.get('sidebar_visible', True):
             self.sidebar_dock.setVisible(True)
+        
+        # Restore toolbar state (positions and visibility)
+        if 'toolbar_state' in self.settings:
+            try:
+                from PySide6.QtCore import QByteArray
+                state_bytes = self.settings['toolbar_state'].encode('utf-8')
+                self.restoreState(QByteArray.fromBase64(state_bytes))
+            except:
+                pass  # If restore fails, use default layout
     
     def _setup_ui(self):
         """Setup user interface"""
         self.setWindowTitle("DocLens")
-        self.setGeometry(100, 100, 1200, 800)
+        
+        # Restore window size and position from settings
+        if 'window_geometry' in self.settings:
+            try:
+                from PySide6.QtCore import QByteArray
+                geom_bytes = self.settings['window_geometry'].encode('utf-8')
+                self.restoreGeometry(QByteArray.fromBase64(geom_bytes))
+            except:
+                # Default size if restore fails
+                self.setGeometry(100, 100, 1200, 800)
+        else:
+            # Default size
+            self.setGeometry(100, 100, 1200, 800)
         
         # Central widget with scroll area
         self.scroll_area = QScrollArea()
@@ -104,6 +125,7 @@ class MainWindow(QMainWindow):
         
         # === FILE & NAVIGATION TOOLBAR ===
         file_toolbar = QToolBar("File & Navigation")
+        file_toolbar.setObjectName("FileNavigationToolBar")
         file_toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(file_toolbar)
         
@@ -160,6 +182,7 @@ class MainWindow(QMainWindow):
         # === VIEW TOOLBAR ===
         self.addToolBarBreak()
         view_toolbar = QToolBar("View Controls")
+        view_toolbar.setObjectName("ViewControlsToolBar")
         view_toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(view_toolbar)
         
@@ -215,6 +238,7 @@ class MainWindow(QMainWindow):
         # === ANNOTATION TOOLBAR ===
         self.addToolBarBreak()
         annotation_toolbar = QToolBar("Annotations")
+        annotation_toolbar.setObjectName("AnnotationsToolBar")
         annotation_toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(annotation_toolbar)
         
@@ -283,6 +307,7 @@ class MainWindow(QMainWindow):
         # === DRAWING TOOLBAR ===
         self.addToolBarBreak()
         drawing_toolbar = QToolBar("Drawing Tools")
+        drawing_toolbar.setObjectName("DrawingToolsToolBar")
         drawing_toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(drawing_toolbar)
         
@@ -324,6 +349,7 @@ class MainWindow(QMainWindow):
         # === TEXT & SEARCH TOOLBAR ===
         self.addToolBarBreak()
         text_toolbar = QToolBar("Text & Search")
+        text_toolbar.setObjectName("TextSearchToolBar")
         text_toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(text_toolbar)
         
@@ -423,13 +449,45 @@ class MainWindow(QMainWindow):
         self.tool_palette.tool_selected.connect(self._on_palette_tool_selected)
         self.tool_palette.color_changed.connect(self._on_palette_color_changed)
         
-        # Position palette at right side of window
-        palette_x = self.width() - self.tool_palette.width() - 20
-        palette_y = 100
+        # Restore position from settings or use default
+        if 'tool_palette_x' in self.settings and 'tool_palette_y' in self.settings:
+            palette_x = self.settings['tool_palette_x']
+            palette_y = self.settings['tool_palette_y']
+            
+            # Ensure position is within window bounds
+            palette_x = max(0, min(palette_x, self.width() - self.tool_palette.width()))
+            palette_y = max(0, min(palette_y, self.height() - self.tool_palette.height()))
+        else:
+            # Default position at right side of window
+            palette_x = self.width() - self.tool_palette.width() - 20
+            palette_y = 100
+        
         self.tool_palette.move(palette_x, palette_y)
         
-        # Show palette
-        self.tool_palette.show()
+        # Restore collapse state
+        if self.settings.get('tool_palette_collapsed', False):
+            self.tool_palette.set_collapsed(True)
+        
+        # Restore color
+        if 'tool_palette_color' in self.settings:
+            color_data = self.settings['tool_palette_color']
+            color = QColor(color_data['r'], color_data['g'], color_data['b'], color_data['a'])
+            self.tool_palette.current_color = color
+            self.current_color = color
+        
+        # Restore tool selection
+        if 'tool_palette_current_tool' in self.settings:
+            tool = self.settings['tool_palette_current_tool']
+            # Restore tool selection after a short delay to ensure UI is ready
+            QTimer.singleShot(100, lambda: self.set_drawing_mode(tool))
+        
+        # Restore visibility from settings
+        palette_visible = self.settings.get('tool_palette_visible', True)
+        if palette_visible:
+            self.tool_palette.show()
+        else:
+            self.tool_palette.hide()
+            self.palette_action.setChecked(False)
     
     def _on_palette_tool_selected(self, tool):
         """Handle tool selection from palette"""
@@ -1227,13 +1285,41 @@ class MainWindow(QMainWindow):
     
     def get_settings(self):
         """Get current settings for persistence"""
-        return {
+        settings = {
             'last_file': self.doc_path,
             'last_page': self.current_page,
             'last_zoom': self.zoom_level,
             'dark_mode': self.dark_mode,
             'sidebar_visible': self.sidebar_dock.isVisible()
         }
+        
+        # Save window size and position
+        settings['window_geometry'] = self.saveGeometry().toBase64().data().decode('utf-8')
+        
+        # Save tool palette position, visibility, and collapse state
+        if self.tool_palette:
+            settings['tool_palette_x'] = self.tool_palette.x()
+            settings['tool_palette_y'] = self.tool_palette.y()
+            settings['tool_palette_visible'] = self.tool_palette.isVisible()
+            settings['tool_palette_collapsed'] = self.tool_palette.is_collapsed
+            
+            # Save current tool selection
+            if self.tool_palette.current_tool:
+                settings['tool_palette_current_tool'] = self.tool_palette.current_tool
+            
+            # Save current color
+            color = self.tool_palette.current_color
+            settings['tool_palette_color'] = {
+                'r': color.red(),
+                'g': color.green(),
+                'b': color.blue(),
+                'a': color.alpha()
+            }
+        
+        # Save toolbar state (positions and visibility)
+        settings['toolbar_state'] = self.saveState().toBase64().data().decode('utf-8')
+        
+        return settings
     
     def closeEvent(self, event):
         """Handle window close"""
