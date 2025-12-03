@@ -5,7 +5,8 @@ PDF Label with Overlay - QLabel with search highlights and annotations
 import math
 from PySide6.QtWidgets import QLabel, QInputDialog, QTextEdit
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath, QPolygonF, QFont
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath, QPolygonF, QFont, QTextOption
+from text_editor_widget import MovableTextEditor
 
 
 class PDFLabelWithOverlay(QLabel):
@@ -36,7 +37,6 @@ class PDFLabelWithOverlay(QLabel):
         # Text editing
         self.text_editor = None
         self.text_editor_pos = None
-        self.text_preview = None  # Preview text while editing
         
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet("background-color: white; border: 1px solid #ccc;")
@@ -127,16 +127,46 @@ class PDFLabelWithOverlay(QLabel):
                 rect = self._convert_pdf_rect_to_widget(annotation.rect)
                 painter.drawEllipse(rect)
             elif annotation.annotation_type.startswith('text:'):
-                # Extract text from type field
-                text = annotation.annotation_type[5:]  # Remove 'text:' prefix
-                pen = QPen(annotation.color)
-                painter.setPen(pen)
-                from PySide6.QtGui import QFont
-                font = QFont()
-                font.setPointSize(12)
-                painter.setFont(font)
+                # Extract text and formatting from type field
+                text_data = annotation.annotation_type[5:]  # Remove 'text:' prefix
+                
+                # Parse format: fontfamily|fontsize|r,g,b,a:actual_text
+                if '|' in text_data and ':' in text_data:
+                    try:
+                        format_part, text = text_data.rsplit(':', 1)
+                        parts = format_part.split('|')
+                        font_family = parts[0]
+                        font_size = int(parts[1])
+                        color_parts = parts[2].split(',')
+                        text_color = QColor(int(color_parts[0]), int(color_parts[1]), 
+                                          int(color_parts[2]), int(color_parts[3]))
+                        
+                        # Apply font and color with zoom scaling
+                        font = QFont(font_family)
+                        # Scale font size according to zoom level
+                        scaled_font_size = int(font_size * self.zoom / 100.0)
+                        font.setPointSize(scaled_font_size)
+                        painter.setFont(font)
+                        painter.setPen(QPen(text_color))
+                    except:
+                        # Fallback to default if parsing fails
+                        text = text_data
+                        font = QFont()
+                        scaled_font_size = int(12 * self.zoom / 100.0)
+                        font.setPointSize(scaled_font_size)
+                        painter.setFont(font)
+                        painter.setPen(QPen(annotation.color))
+                else:
+                    # Old format - just text
+                    text = text_data
+                    font = QFont()
+                    scaled_font_size = int(12 * self.zoom / 100.0)
+                    font.setPointSize(scaled_font_size)
+                    painter.setFont(font)
+                    painter.setPen(QPen(annotation.color))
+                
                 rect = self._convert_pdf_rect_to_widget(annotation.rect)
-                painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop, text)
+                painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, text)
             elif annotation.annotation_type == 'pen':
                 pen = QPen(annotation.color, 3)
                 pen.setCapStyle(Qt.RoundCap)
@@ -211,30 +241,6 @@ class PDFLabelWithOverlay(QLabel):
             painter.setBrush(QBrush(self._temp_selection_color))
             painter.drawRect(self._temp_selection_rect)
         
-        # Draw text preview while editing
-        if self.text_preview and self.text_editor_pos:
-            # Draw semi-transparent background box
-            editor_rect = self.text_editor.geometry() if self.text_editor else QRectF(self.text_editor_pos.x(), self.text_editor_pos.y(), 250, 120)
-            preview_rect = QRectF(editor_rect)
-            
-            # Draw background - more transparent
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(QColor(255, 255, 255, 80)))
-            painter.drawRect(preview_rect)
-            
-            # Draw border
-            painter.setPen(QPen(self.drawing_color, 2))
-            painter.setBrush(Qt.NoBrush)
-            painter.drawRect(preview_rect)
-            
-            # Draw text preview
-            painter.setPen(QPen(self.drawing_color))
-            font = QFont()
-            font.setPointSize(12)
-            painter.setFont(font)
-            text_rect = preview_rect.adjusted(8, 8, -8, -8)
-            painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, self.text_preview)
-        
         painter.end()
     
     def mousePressEvent(self, event):
@@ -276,105 +282,69 @@ class PDFLabelWithOverlay(QLabel):
         """Create text editor overlay at position"""
         # Remove existing text editor if any
         if self.text_editor:
-            self._finish_text_editing()
+            if hasattr(self.text_editor, 'close'):
+                self.text_editor.close()
         
-        # Create text editor
-        self.text_editor = QTextEdit(self)
-        self.text_editor.setGeometry(int(pos.x()), int(pos.y()), 250, 120)
+        # Convert widget position to screen position
+        screen_pos = self.mapToGlobal(pos.toPoint())
+        
+        # Create movable text editor widget
+        self.text_editor = MovableTextEditor(self.window(), self.drawing_color)
         self.text_editor_pos = pos
         
-        # Style the text editor with better visibility and transparency
-        self.text_editor.setStyleSheet("""
-            QTextEdit {
-                background-color: rgba(255, 255, 255, 150);
-                border: 3px solid #2196F3;
-                border-radius: 6px;
-                padding: 8px;
-                font-size: 12pt;
-                color: #000000;
-            }
-        """)
+        # Position the editor
+        self.text_editor.move(screen_pos)
         
-        # Set font to match preview
-        font = QFont()
-        font.setPointSize(12)
-        self.text_editor.setFont(font)
+        # Connect signals
+        self.text_editor.finished.connect(self._on_text_editor_finished)
+        self.text_editor.cancelled.connect(self._on_text_editor_cancelled)
         
-        # Show and focus
+        # Show the editor
         self.text_editor.show()
-        self.text_editor.setFocus()
-        
-        # Connect signals for real-time preview
-        self.text_editor.textChanged.connect(self._update_text_preview)
-        self.text_editor.installEventFilter(self)
+        self.text_editor.raise_()
+        self.text_editor.activateWindow()
     
-    def eventFilter(self, obj, event):
-        """Filter events for text editor"""
-        if obj == self.text_editor:
-            # Handle Escape key to cancel
-            if event.type() == event.Type.KeyPress:
-                if event.key() == Qt.Key_Escape:
-                    self._cancel_text_editing()
-                    return True
-                elif event.key() == Qt.Key_Return and event.modifiers() == Qt.ControlModifier:
-                    # Ctrl+Enter to finish
-                    self._finish_text_editing()
-                    return True
-            # Handle focus out to finish editing
-            elif event.type() == event.Type.FocusOut:
-                # Delay to allow clicking buttons
-                from PySide6.QtCore import QTimer
-                QTimer.singleShot(100, self._finish_text_editing)
-        
-        return super().eventFilter(obj, event)
-    
-    def _finish_text_editing(self):
-        """Finish text editing and save annotation"""
-        if not self.text_editor:
-            return
-        
-        text = self.text_editor.toPlainText().strip()
-        
+    def _on_text_editor_finished(self, text, font, color):
+        """Handle text editor finished with text"""
         if text and self.text_editor_pos:
-            # Get text editor size
-            editor_rect = self.text_editor.geometry()
+            # Get text editor final size and position
+            editor_geo = self.text_editor.geometry()
+            
+            # Convert screen position back to widget position
+            widget_pos = self.mapFromGlobal(editor_geo.topLeft())
+            
+            # Create rect for annotation
             widget_rect = QRectF(
-                self.text_editor_pos.x(),
-                self.text_editor_pos.y(),
-                editor_rect.width(),
-                editor_rect.height()
+                widget_pos.x(),
+                widget_pos.y(),
+                editor_geo.width(),
+                editor_geo.height()
             )
+            
+            # Convert to PDF coordinates
             pdf_rect = self._convert_widget_rect_to_pdf(widget_rect)
             
-            # Store text in annotation
+            # Store text with font and color information
+            # Format: text:fontfamily|fontsize|r,g,b,a:actual_text
+            text_data = f"{font.family()}|{font.pointSize()}|{color.red()},{color.green()},{color.blue()},{color.alpha()}:{text}"
+            
             self.annotation_added.emit(
                 self.page_num,
                 pdf_rect,
-                self.drawing_color,
-                f'text:{text}'
+                color,
+                f'text:{text_data}'
             )
         
-        # Remove text editor and preview
-        self.text_editor.deleteLater()
+        # Cleanup
         self.text_editor = None
         self.text_editor_pos = None
-        self.text_preview = None
         self.update()
     
-    def _update_text_preview(self):
-        """Update text preview in real-time"""
-        if self.text_editor:
-            self.text_preview = self.text_editor.toPlainText()
-            self.update()  # Trigger repaint to show preview
-    
-    def _cancel_text_editing(self):
-        """Cancel text editing without saving"""
-        if self.text_editor:
-            self.text_editor.deleteLater()
-            self.text_editor = None
-            self.text_editor_pos = None
-            self.text_preview = None
-            self.update()
+    def _on_text_editor_cancelled(self):
+        """Handle text editor cancelled"""
+        self.text_editor = None
+        self.text_editor_pos = None
+        self.update()
     
     def mouseReleaseEvent(self, event):
         """Handle mouse release to finish drawing"""
