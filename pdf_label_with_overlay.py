@@ -282,8 +282,14 @@ class PDFLabelWithOverlay(QLabel):
         """Create text editor overlay at position"""
         # Remove existing text editor if any
         if self.text_editor:
-            if hasattr(self.text_editor, 'close'):
-                self.text_editor.close()
+            try:
+                # Check if widget still exists before trying to close
+                if not self.text_editor.isHidden():
+                    self.text_editor.close()
+            except (RuntimeError, AttributeError):
+                # Widget already deleted, just clear reference
+                pass
+            self.text_editor = None
         
         # Convert widget position to screen position
         screen_pos = self.mapToGlobal(pos.toPoint())
