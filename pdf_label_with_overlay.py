@@ -166,6 +166,15 @@ class PDFLabelWithOverlay(QLabel):
                     painter.setPen(QPen(annotation.color))
                 
                 rect = self._convert_pdf_rect_to_widget(annotation.rect)
+                
+                # Draw semi-transparent background for better readability
+                painter.save()
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QBrush(QColor(255, 255, 255, 30)))
+                painter.drawRect(rect)
+                painter.restore()
+                
+                # Draw the text
                 painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, text)
             elif annotation.annotation_type == 'pen':
                 pen = QPen(annotation.color, 3)
@@ -315,16 +324,26 @@ class PDFLabelWithOverlay(QLabel):
         if text and self.text_editor_pos:
             # Get text editor final size and position
             editor_geo = self.text_editor.geometry()
+            text_edit_geo = self.text_editor.text_edit.geometry()
             
-            # Convert screen position back to widget position
-            widget_pos = self.mapFromGlobal(editor_geo.topLeft())
+            # Calculate the actual text area position (accounting for title bar, toolbar, padding)
+            # Title bar height + toolbar height + container padding + text edit padding
+            title_toolbar_offset = text_edit_geo.y()  # This includes all offsets
+            left_offset = text_edit_geo.x()
             
-            # Create rect for annotation
+            # Convert screen position of text edit area back to widget position
+            text_edit_screen_pos = self.text_editor.mapToGlobal(text_edit_geo.topLeft())
+            widget_pos = self.mapFromGlobal(text_edit_screen_pos)
+            
+            # Get the actual text content area (excluding padding)
+            padding = 8  # From stylesheet
+            
+            # Create rect for annotation - this should match exactly where text appears
             widget_rect = QRectF(
-                widget_pos.x(),
-                widget_pos.y(),
-                editor_geo.width(),
-                editor_geo.height()
+                widget_pos.x() + padding,
+                widget_pos.y() + padding,
+                text_edit_geo.width() - padding * 2,
+                text_edit_geo.height() - padding * 2
             )
             
             # Convert to PDF coordinates

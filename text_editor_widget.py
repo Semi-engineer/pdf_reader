@@ -43,8 +43,8 @@ class MovableTextEditor(QWidget):
         container = QFrame()
         container.setStyleSheet("""
             QFrame {
-                background-color: rgba(255, 255, 255, 120);
-                border: 3px solid #2196F3;
+                background-color: rgba(255, 255, 255, 10);
+                border: 2px solid rgba(33, 150, 243, 150);
                 border-radius: 8px;
             }
         """)
@@ -56,7 +56,7 @@ class MovableTextEditor(QWidget):
         title_bar = QWidget()
         title_bar.setStyleSheet("""
             QWidget {
-                background-color: rgba(33, 150, 243, 180);
+                background-color: rgba(33, 150, 243, 80);
                 border-radius: 4px;
             }
         """)
@@ -77,9 +77,28 @@ class MovableTextEditor(QWidget):
         
         container_layout.addWidget(title_bar)
         
-        # Toolbar
-        toolbar = QHBoxLayout()
+        # Toolbar with transparent background
+        toolbar_widget = QWidget()
+        toolbar_widget.setStyleSheet("""
+            QWidget {
+                background-color: rgba(240, 240, 240, 30);
+                border-radius: 4px;
+            }
+            QLabel {
+                color: #333;
+                font-weight: bold;
+                background: transparent;
+            }
+            QFontComboBox, QSpinBox {
+                background-color: rgba(255, 255, 255, 80);
+                border: 1px solid rgba(200, 200, 200, 100);
+                border-radius: 3px;
+                padding: 2px;
+            }
+        """)
+        toolbar = QHBoxLayout(toolbar_widget)
         toolbar.setSpacing(5)
+        toolbar.setContentsMargins(5, 3, 5, 3)
         
         # Font selector
         self.font_combo = QFontComboBox()
@@ -106,7 +125,7 @@ class MovableTextEditor(QWidget):
         toolbar.addWidget(self.color_btn)
         
         toolbar.addStretch()
-        container_layout.addLayout(toolbar)
+        container_layout.addWidget(toolbar_widget)
         
         # Text editor
         self.text_edit = QTextEdit()
@@ -118,9 +137,8 @@ class MovableTextEditor(QWidget):
         self.text_edit.setLineWrapMode(QTextEdit.WidgetWidth)
         self.text_edit.setStyleSheet("""
             QTextEdit {
-                background-color: rgba(255, 255, 255, 100);
-                border: 1px solid #ccc;
-                border-radius: 4px;
+                background-color: transparent;
+                border: none;
                 padding: 8px;
             }
         """)
