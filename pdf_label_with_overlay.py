@@ -167,14 +167,7 @@ class PDFLabelWithOverlay(QLabel):
                 
                 rect = self._convert_pdf_rect_to_widget(annotation.rect)
                 
-                # Draw semi-transparent background for better readability
-                painter.save()
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(QBrush(QColor(255, 255, 255, 30)))
-                painter.drawRect(rect)
-                painter.restore()
-                
-                # Draw the text
+                # Draw the text without background
                 painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, text)
             elif annotation.annotation_type == 'pen':
                 pen = QPen(annotation.color, 3)

@@ -31,7 +31,7 @@ class MovableTextEditor(QWidget):
         
         # Make widget frameless but keep it as a window
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         
     def _setup_ui(self):
         """Setup UI components"""
@@ -43,8 +43,8 @@ class MovableTextEditor(QWidget):
         container = QFrame()
         container.setStyleSheet("""
             QFrame {
-                background-color: rgba(255, 255, 255, 10);
-                border: 2px solid rgba(33, 150, 243, 150);
+                background-color: rgba(255, 255, 255, 50);
+                border: 2px solid rgba(33, 150, 243, 50);
                 border-radius: 8px;
             }
         """)
@@ -77,21 +77,21 @@ class MovableTextEditor(QWidget):
         
         container_layout.addWidget(title_bar)
         
-        # Toolbar with transparent background
+        # Toolbar with semi-transparent background
         toolbar_widget = QWidget()
         toolbar_widget.setStyleSheet("""
             QWidget {
-                background-color: rgba(240, 240, 240, 30);
+                background-color: rgba(240, 240, 240, 180);
                 border-radius: 4px;
             }
             QLabel {
-                color: #333;
+                color: #000;
                 font-weight: bold;
                 background: transparent;
             }
             QFontComboBox, QSpinBox {
-                background-color: rgba(255, 255, 255, 80);
-                border: 1px solid rgba(200, 200, 200, 100);
+                background-color: rgba(255, 255, 255, 230);
+                border: 1px solid rgba(150, 150, 150, 180);
                 border-radius: 3px;
                 padding: 2px;
             }
@@ -137,8 +137,9 @@ class MovableTextEditor(QWidget):
         self.text_edit.setLineWrapMode(QTextEdit.WidgetWidth)
         self.text_edit.setStyleSheet("""
             QTextEdit {
-                background-color: transparent;
-                border: none;
+                background-color: rgba(255, 255, 255, 150);
+                border: 1px solid rgba(200, 200, 200, 100);
+                border-radius: 4px;
                 padding: 8px;
             }
         """)

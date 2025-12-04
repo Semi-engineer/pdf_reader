@@ -383,6 +383,7 @@ class MainWindow(QMainWindow):
     def _setup_sidebar(self):
         """Setup thumbnail sidebar"""
         self.sidebar_dock = QDockWidget("Thumbnails", self)
+        self.sidebar_dock.setObjectName("ThumbnailsDock")
         self.sidebar_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         
         self.thumbnail_list = QListWidget()
