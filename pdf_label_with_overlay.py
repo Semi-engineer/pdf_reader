@@ -131,44 +131,87 @@ class PDFLabelWithOverlay(QLabel):
                 text_data = annotation.annotation_type[5:]  # Remove 'text:' prefix
                 
                 # Parse format: fontfamily|fontsize|r,g,b,a:actual_text
-                if '|' in text_data and ':' in text_data:
+                # Note: actual_text may contain colons, so we need to be careful
+                text = ""  # Initialize text variable
+                font = QFont()  # Default font
+                text_color = annotation.color  # Default color
+                
+                # Try to parse metadata
+                # Format is: font_family|font_size|r,g,b,a:text
+                # We need to find the first 3 pipe-separated values, then everything after the colon is text
+                if '|' in text_data:
                     try:
-                        format_part, text = text_data.rsplit(':', 1)
-                        parts = format_part.split('|')
-                        font_family = parts[0]
-                        font_size = int(parts[1])
-                        color_parts = parts[2].split(',')
-                        text_color = QColor(int(color_parts[0]), int(color_parts[1]), 
-                                          int(color_parts[2]), int(color_parts[3]))
+                        # Split by pipe to get metadata parts
+                        parts = text_data.split('|')
                         
-                        # Apply font and color with zoom scaling
-                        font = QFont(font_family)
-                        # Scale font size according to zoom level
-                        scaled_font_size = int(font_size * self.zoom / 100.0)
-                        font.setPointSize(scaled_font_size)
-                        painter.setFont(font)
-                        painter.setPen(QPen(text_color))
-                    except:
-                        # Fallback to default if parsing fails
-                        text = text_data
-                        font = QFont()
-                        scaled_font_size = int(12 * self.zoom / 100.0)
-                        font.setPointSize(scaled_font_size)
-                        painter.setFont(font)
-                        painter.setPen(QPen(annotation.color))
+                        # We expect at least 3 parts: font_family|font_size|color_with_text
+                        if len(parts) >= 3:
+                            font_family = parts[0]
+                            font_size_str = parts[1]
+                            
+                            # The third part contains: r,g,b,a:actual_text
+                            # We need to extract color and text
+                            color_and_text = '|'.join(parts[2:])  # Rejoin in case text contains pipes
+                            
+                            # Now split by colon to separate color from text
+                            if ':' in color_and_text:
+                                color_str, text = color_and_text.split(':', 1)  # Split only on FIRST colon
+                                
+                                # Parse color
+                                color_parts = color_str.split(',')
+                                if len(color_parts) >= 4:
+                                    text_color = QColor(
+                                        int(color_parts[0]), 
+                                        int(color_parts[1]), 
+                                        int(color_parts[2]), 
+                                        int(color_parts[3])
+                                    )
+                                
+                                # Parse font
+                                font = QFont(font_family)
+                                font_size = int(font_size_str)
+                                scaled_font_size = int(font_size * self.zoom / 100.0)
+                                font.setPointSize(scaled_font_size)
+                                
+                                # Debug (uncomment to see what's being parsed)
+                                # print(f"DEBUG: Parsed - font={font_family}, size={font_size}, color={color_str}, text='{text[:50]}...'")
+                            else:
+                                # No colon found, treat entire thing as text
+                                text = color_and_text
+                                print(f"Warning: No colon found in color_and_text: {color_and_text[:50]}")
+                        else:
+                            # Not enough parts, treat as plain text
+                            text = text_data
+                            print(f"Warning: Not enough pipe-separated parts: {len(parts)}")
+                    except Exception as e:
+                        # Fallback: extract text after first colon if possible
+                        print(f"Error parsing text annotation: {e}")
+                        if ':' in text_data:
+                            # Try to extract text after the color values
+                            # Look for pattern: number,number,number,number:text
+                            import re
+                            match = re.search(r'\d+,\d+,\d+,\d+:(.*)', text_data)
+                            if match:
+                                text = match.group(1)
+                            else:
+                                text = text_data.split(':', 1)[-1] if ':' in text_data else text_data
+                        else:
+                            text = text_data
                 else:
-                    # Old format - just text
+                    # Old format - just text (no metadata)
                     text = text_data
-                    font = QFont()
-                    scaled_font_size = int(12 * self.zoom / 100.0)
-                    font.setPointSize(scaled_font_size)
-                    painter.setFont(font)
-                    painter.setPen(QPen(annotation.color))
+                
+                # Apply font and color
+                scaled_font_size = int(font.pointSize() * self.zoom / 100.0) if font.pointSize() > 0 else int(12 * self.zoom / 100.0)
+                font.setPointSize(scaled_font_size)
+                painter.setFont(font)
+                painter.setPen(QPen(text_color))
                 
                 rect = self._convert_pdf_rect_to_widget(annotation.rect)
                 
-                # Draw the text without background
-                painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, text)
+                # Draw ONLY the text without background or metadata
+                if text:  # Only draw if text is not empty
+                    painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, text)
             elif annotation.annotation_type == 'pen':
                 pen = QPen(annotation.color, 3)
                 pen.setCapStyle(Qt.RoundCap)
