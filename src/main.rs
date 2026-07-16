@@ -4,6 +4,7 @@ Main entry point
 */
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(dead_code)]
 
 mod app;
 mod config;
@@ -35,7 +36,7 @@ fn main() -> Result<(), eframe::Error> {
     )
 }
 
-fn load_icon() -> eframe::IconData {
+fn load_icon() -> egui::viewport::IconData {
     // Load icon from file
     let icon_path = std::path::Path::new("icon/icon.ico");
     
@@ -44,7 +45,7 @@ fn load_icon() -> eframe::IconData {
             if let Ok(img) = image::load_from_memory(&icon_bytes) {
                 let rgba = img.to_rgba8();
                 let (width, height) = rgba.dimensions();
-                return eframe::IconData {
+                return egui::viewport::IconData {
                     rgba: rgba.into_raw(),
                     width,
                     height,
@@ -54,7 +55,7 @@ fn load_icon() -> eframe::IconData {
     }
     
     // Default icon (empty)
-    eframe::IconData {
+    egui::viewport::IconData {
         rgba: vec![0; 32 * 32 * 4],
         width: 32,
         height: 32,

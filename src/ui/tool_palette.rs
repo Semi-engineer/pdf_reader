@@ -1,6 +1,6 @@
 /*!
 Tool Palette Component
-Floating tool palette for annotations
+Floating palette for annotation tools.
 */
 
 use crate::annotation::AnnotationType;
@@ -13,11 +13,8 @@ impl ToolPalette {
     pub fn new() -> Self {
         Self {}
     }
-    
+
     pub fn show(&mut self, ui: &mut egui::Ui, app: &mut DocLensApp) {
-        ui.heading("Annotation Tools");
-        ui.separator();
-        
         // Color picker
         ui.horizontal(|ui| {
             ui.label("Color:");
@@ -27,45 +24,63 @@ impl ToolPalette {
                 egui::color_picker::Alpha::OnlyBlend,
             );
         });
-        
+
+        ui.add_space(4.0);
         ui.separator();
-        
+        ui.add_space(4.0);
+
         // Tool buttons
-        ui.vertical(|ui| {
-            let tools = vec![
-                (AnnotationType::Highlight, "✏ Highlight"),
-                (AnnotationType::Rectangle, "▭ Rectangle"),
-                (AnnotationType::Circle, "◯ Circle"),
-                (AnnotationType::Line, "─ Line"),
-                (AnnotationType::Arrow, "→ Arrow"),
-                (AnnotationType::Pen, "✎ Pen"),
-                (AnnotationType::Text, "T Text"),
-            ];
-            
-            for (tool_type, label) in tools {
-                let is_selected = app.current_tool.as_ref() == Some(&tool_type);
-                
-                let button = if is_selected {
-                    egui::Button::new(label).fill(egui::Color32::from_rgb(200, 220, 255))
+        let tools: &[(&str, AnnotationType, &str)] = &[
+            ("✏ Highlight",   AnnotationType::Highlight,  "Drag to highlight text"),
+            ("▭ Rectangle",  AnnotationType::Rectangle,  "Drag to draw rectangle"),
+            ("◯ Circle",     AnnotationType::Circle,     "Drag to draw ellipse"),
+            ("─ Line",       AnnotationType::Line,       "Click to add line"),
+            ("→ Arrow",      AnnotationType::Arrow,      "Click to add arrow"),
+            ("🖊 Pen",        AnnotationType::Pen,        "Drag to draw freehand"),
+            ("T Text",       AnnotationType::Text,       "Click to add text"),
+        ];
+
+        for (label, tool_type, hint) in tools {
+            let is_selected = app.current_tool.as_ref() == Some(tool_type);
+
+            let button = if is_selected {
+                egui::Button::new(
+                    egui::RichText::new(*label).color(egui::Color32::WHITE),
+                )
+                .fill(egui::Color32::from_rgb(70, 130, 200))
+            } else {
+                egui::Button::new(*label)
+            };
+
+            let response = ui
+                .add_sized([130.0, 28.0], button)
+                .on_hover_text(*hint);
+
+            if response.clicked() {
+                if is_selected {
+                    app.current_tool = None;
                 } else {
-                    egui::Button::new(label)
-                };
-                
-                if ui.add_sized([120.0, 30.0], button).clicked() {
-                    if is_selected {
-                        app.current_tool = None;
-                    } else {
-                        app.current_tool = Some(tool_type);
-                    }
+                    app.current_tool = Some(tool_type.clone());
                 }
             }
-        });
-        
+        }
+
+        ui.add_space(4.0);
         ui.separator();
-        
-        // Clear button
-        if ui.button("🗑 Clear All").clicked() {
+        ui.add_space(4.0);
+
+        if ui.button("🗑 Clear page annotations").clicked() {
+            app.annotation_manager.clear_page(app.current_page);
+        }
+
+        if ui.button("🗑 Clear all annotations").clicked() {
             app.annotation_manager.clear();
+        }
+
+        // Deselect tool hint
+        if app.current_tool.is_some() {
+            ui.add_space(4.0);
+            ui.weak("Click active tool to deselect");
         }
     }
 }

@@ -40,30 +40,29 @@ impl RenderWorker {
     pub fn new(pdf_path: String) -> Self {
         let (request_tx, mut request_rx) = mpsc::unbounded_channel::<RenderRequest>();
         let (response_tx, response_rx) = mpsc::unbounded_channel::<RenderResponse>();
-        
-        // Spawn worker thread
+
+        // Spawn a dedicated OS thread that owns the Tokio runtime.
         std::thread::spawn(move || {
             let runtime = tokio::runtime::Runtime::new().unwrap();
             runtime.block_on(async move {
-                // Open PDF document
+                // Open PDF document once on the worker thread.
                 let doc = match PdfDocument::open(&pdf_path) {
-                    Ok(doc) => Arc::new(doc),
+                    Ok(d) => Arc::new(d),
                     Err(e) => {
-                        eprintln!("Failed to open PDF: {}", e);
+                        eprintln!("Failed to open PDF in worker: {}", e);
                         return;
                     }
                 };
-                
+
                 while let Some(request) = request_rx.recv().await {
                     match request {
                         RenderRequest::RenderPage { page, zoom, rotation } => {
                             let doc = Arc::clone(&doc);
                             let response_tx = response_tx.clone();
-                            
-                            // Render in parallel using rayon
+
                             tokio::task::spawn_blocking(move || {
                                 let result = render_page(&doc, page, zoom, rotation);
-                                
+
                                 let response = match result {
                                     Ok(image) => RenderResponse::PageRendered {
                                         page,
@@ -76,7 +75,7 @@ impl RenderWorker {
                                         error: e.to_string(),
                                     },
                                 };
-                                
+
                                 let _ = response_tx.send(response);
                             });
                         }
@@ -84,14 +83,14 @@ impl RenderWorker {
                 }
             });
         });
-        
+
         Self {
             tx: request_tx,
             rx: Arc::new(tokio::sync::Mutex::new(response_rx)),
         }
     }
-    
-    /// Request page render
+
+    /// Request page render.
     pub fn render_page(&self, page: usize, zoom: f32, rotation: u32) {
         let _ = self.tx.send(RenderRequest::RenderPage {
             page,
@@ -99,8 +98,8 @@ impl RenderWorker {
             rotation,
         });
     }
-    
-    /// Try to receive rendered page (non-blocking)
+
+    /// Try to receive a rendered page (non-blocking).
     pub fn try_recv(&self) -> Option<RenderResponse> {
         if let Ok(mut rx) = self.rx.try_lock() {
             rx.try_recv().ok()
@@ -117,12 +116,11 @@ fn render_page(doc: &PdfDocument, page: usize, zoom: f32, rotation: u32) -> Resu
         270 => PdfPageRenderRotation::Degrees270,
         _ => PdfPageRenderRotation::None,
     };
-    
+
     let rgba_image = doc.render_page(page, zoom, rotation_enum)?;
-    
-    // Convert to egui ColorImage
+
     let size = [rgba_image.width() as usize, rgba_image.height() as usize];
     let pixels = rgba_image.into_raw();
-    
+
     Ok(ColorImage::from_rgba_unmultiplied(size, &pixels))
 }

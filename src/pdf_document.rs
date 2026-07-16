@@ -1,121 +1,176 @@
 /*!
 PDF Document Wrapper
-Handles PDF document operations using pdfium
+Handles PDF document operations using pdfium-render.
+
+We store only the file path (+ cached page count) and re-open the document
+for every operation.  This avoids the self-referential lifetime issue with
+`pdfium_render::PdfDocument<'_>` while keeping the struct `Send + Sync`.
 */
 
 use anyhow::{Context, Result};
 use pdfium_render::prelude::*;
 use std::path::Path;
-use std::sync::Arc;
 
 pub struct PdfDocument {
-    pdfium: Arc<Pdfium>,
-    document: PdfDocument<'static>,
     path: String,
+    page_count: usize,
 }
 
 impl PdfDocument {
-    /// Open a PDF file
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let path_str = path.as_ref().to_string_lossy().to_string();
-        
-        let pdfium = Pdfium::new(
+    /// Bind to the PDFium native library.
+    pub fn bind() -> Result<Pdfium> {
+        Ok(Pdfium::new(
             Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./"))
                 .or_else(|_| Pdfium::bind_to_system_library())
-                .context("Failed to bind to PDFium library")?,
-        );
-        
+                .context("Failed to bind to PDFium library. Make sure pdfium.dll is present.")?,
+        ))
+    }
+
+    /// Open a PDF file and cache its page count.
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path_str = path.as_ref().to_string_lossy().to_string();
+        let pdfium = Self::bind()?;
         let document = pdfium
             .load_pdf_from_file(&path_str, None)
             .context("Failed to load PDF file")?;
-        
+        let page_count = document.pages().len() as usize;
+
         Ok(Self {
-            pdfium: Arc::new(pdfium),
-            document,
             path: path_str,
+            page_count,
         })
     }
-    
-    /// Get number of pages
+
     pub fn page_count(&self) -> usize {
-        self.document.pages().len() as usize
+        self.page_count
     }
-    
-    /// Get page at index
-    pub fn get_page(&self, index: usize) -> Option<PdfPage> {
-        self.document.pages().get(index as u16).ok()
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
-    
-    /// Render page to image
+
+    /// Render one page to an RGBA image.
+    ///
+    /// `zoom` is a percentage — 100.0 = original size.
     pub fn render_page(
         &self,
         page_index: usize,
         zoom: f32,
         rotation: PdfPageRenderRotation,
     ) -> Result<image::RgbaImage> {
-        let page = self
-            .get_page(page_index)
+        let pdfium = Self::bind()?;
+        let document = pdfium
+            .load_pdf_from_file(&self.path, None)
+            .context("Failed to load PDF file")?;
+
+        let page = document
+            .pages()
+            .get(page_index as u16)
             .context("Invalid page index")?;
-        
-        let width = (page.width().value * zoom / 100.0) as u32;
-        let height = (page.height().value * zoom / 100.0) as u32;
-        
+
+        let scale = zoom / 100.0;
+        let width = (page.width().value * scale).round().max(1.0) as u32;
+        let height = (page.height().value * scale).round().max(1.0) as u32;
+
         let render_config = PdfRenderConfig::new()
             .set_target_width(width as i32)
             .set_target_height(height as i32)
             .rotate(rotation, true);
-        
+
         let bitmap = page
             .render_with_config(&render_config)
             .context("Failed to render page")?;
-        
-        // Convert bitmap to image
-        let rgba = bitmap.as_image_buffer();
-        Ok(rgba)
+
+        Ok(bitmap.as_image().to_rgba8())
     }
-    
-    /// Get page text
+
+    /// Extract all text from a page.
     pub fn get_page_text(&self, page_index: usize) -> Result<String> {
-        let page = self
-            .get_page(page_index)
+        let pdfium = Self::bind()?;
+        let document = pdfium
+            .load_pdf_from_file(&self.path, None)
+            .context("Failed to load PDF file")?;
+        let page = document
+            .pages()
+            .get(page_index as u16)
             .context("Invalid page index")?;
-        
-        Ok(page.text()?.all())
+        let text = page.text().context("Failed to get page text")?;
+        Ok(text.all())
     }
-    
-    /// Search text in page
+
+    /// Search for `query` on a page.
+    ///
+    /// Returns bounding boxes already **scaled to screen pixels** for the
+    /// given `zoom` percentage.  Y-axis is flipped to match egui's top-left
+    /// origin (PDF origin is bottom-left).
     pub fn search_page(
         &self,
         page_index: usize,
         query: &str,
-    ) -> Result<Vec<PdfRect>> {
-        let page = self
-            .get_page(page_index)
-            .context("Invalid page index")?;
-        
-        let mut results = Vec::new();
-        
-        // Simple text search - get all text and find matches
-        let text = page.text()?;
-        let all_text = text.all();
-        
-        if let Some(_) = all_text.to_lowercase().find(&query.to_lowercase()) {
-            // For now, return page bounds (simple implementation)
-            // A more sophisticated implementation would parse text segments
-            results.push(page.page_bounds());
+        zoom: f32,
+    ) -> Result<Vec<egui::Rect>> {
+        if query.is_empty() {
+            return Ok(vec![]);
         }
-        
+
+        let pdfium = Self::bind()?;
+        let document = pdfium
+            .load_pdf_from_file(&self.path, None)
+            .context("Failed to load PDF file")?;
+        let page = document
+            .pages()
+            .get(page_index as u16)
+            .context("Invalid page index")?;
+
+        let scale = zoom / 100.0;
+        let page_height_pts = page.height().value;
+
+        let text_obj = page.text().context("Failed to get page text")?;
+        let options = PdfSearchOptions::new().match_case(false);
+        let search = text_obj.search(query, &options)?;
+
+        let mut results: Vec<egui::Rect> = Vec::new();
+
+        loop {
+            match search.find_next() {
+                Some(segments) => {
+                    // Merge all segments in this match into one bounding box
+                    let mut min_x = f32::MAX;
+                    let mut min_y = f32::MAX;
+                    let mut max_x = f32::MIN;
+                    let mut max_y = f32::MIN;
+                    let mut found_any = false;
+
+                    for seg in segments.iter() {
+                        let b = seg.bounds();
+                        // PDF: origin bottom-left, flip Y for egui (top-left)
+                        let x0 = b.left().value * scale;
+                        let y0 = (page_height_pts - b.top().value) * scale;
+                        let x1 = b.right().value * scale;
+                        let y1 = (page_height_pts - b.bottom().value) * scale;
+
+                        min_x = min_x.min(x0).min(x1);
+                        min_y = min_y.min(y0).min(y1);
+                        max_x = max_x.max(x0).max(x1);
+                        max_y = max_y.max(y0).max(y1);
+                        found_any = true;
+                    }
+
+                    if found_any {
+                        results.push(egui::Rect::from_min_max(
+                            egui::pos2(min_x, min_y),
+                            egui::pos2(max_x, max_y),
+                        ));
+                    }
+                }
+                None => break,
+            }
+        }
+
         Ok(results)
-    }
-    
-    /// Get file path
-    pub fn path(&self) -> &str {
-        &self.path
     }
 }
 
-impl Drop for PdfDocument {
-    fn drop(&mut self) {
-        // Cleanup handled by pdfium-render
-    }
-}
+// SAFETY: PdfDocument holds only a String and usize — fully Send + Sync.
+unsafe impl Send for PdfDocument {}
+unsafe impl Sync for PdfDocument {}
