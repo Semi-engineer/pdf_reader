@@ -142,3 +142,7 @@ config/
 
 # main
 main.*/
+
+# Added by cargo
+
+/target
