@@ -62,10 +62,8 @@ impl DocLensApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let settings = Settings::load().unwrap_or_default();
 
-        // Slightly tighter spacing
-        let mut style = (*cc.egui_ctx.style()).clone();
-        style.spacing.item_spacing = egui::vec2(6.0, 4.0);
-        cc.egui_ctx.set_style(style);
+        // Apply custom theme
+        crate::ui::theme::apply(&cc.egui_ctx);
 
         let sidebar_visible = settings.sidebar_visible;
         let tool_palette_visible = settings.tool_palette_visible;
@@ -386,6 +384,17 @@ impl eframe::App for DocLensApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.process_render_responses(ctx);
 
+        // ── Custom title bar (must be first panel) ────────────────────────
+        let doc_name = self.doc_path.as_deref().and_then(|p| {
+            std::path::Path::new(p)
+                .file_name()
+                .and_then(|n| n.to_str())
+        });
+        if crate::ui::show_title_bar(ctx, doc_name) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             let mut toolbar = std::mem::take(&mut self.toolbar);
             toolbar.show(ui, self);
@@ -410,9 +419,9 @@ impl eframe::App for DocLensApp {
         }
 
         if self.tool_palette_visible {
-            egui::Window::new("🎨 Tools")
+            egui::SidePanel::right("tool_palette")
+                .exact_width(132.0)
                 .resizable(false)
-                .collapsible(true)
                 .show(ctx, |ui| {
                     let mut tool_palette = std::mem::take(&mut self.tool_palette);
                     tool_palette.show(ui, self);

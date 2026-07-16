@@ -72,11 +72,11 @@ impl PdfViewer {
             ui.centered_and_justified(|ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(60.0);
-                    ui.heading("📄 DocLens");
+                    ui.heading("DocLens");
                     ui.add_space(10.0);
                     ui.label("Open a PDF file to get started.");
                     ui.add_space(20.0);
-                    if ui.button("  📁  Open PDF…  ").clicked() {
+                    if ui.button("  Open PDF...  ").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("PDF Files", &["pdf"])
                             .pick_file()
@@ -136,12 +136,12 @@ impl PdfViewer {
 
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    if ui.button("✔ OK").clicked()
+                    if ui.button("OK").clicked()
                         || ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.ctrl)
                     {
                         commit = true;
                     }
-                    if ui.button("✘ Cancel").clicked()
+                    if ui.button("Cancel").clicked()
                         || ui.input(|i| i.key_pressed(egui::Key::Escape))
                     {
                         cancel = true;
@@ -236,7 +236,7 @@ impl PdfViewer {
             ui.painter().text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
-                format!("⏳ Rendering page {}…", page + 1),
+                format!("Loading page {}...", page + 1),
                 egui::FontId::proportional(16.0),
                 egui::Color32::GRAY,
             );

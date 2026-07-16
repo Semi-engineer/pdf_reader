@@ -1,186 +1,195 @@
 /*!
-Toolbar Component
-Main toolbar: file ops, navigation, zoom, rotation, search, view toggles.
+Toolbar — compact icon-first design.
 */
 
+use super::theme::{self, BG_ELEVATED, BORDER, FG_ACCENT, FG_SECONDARY};
 use crate::app::DocLensApp;
-use eframe::egui;
+use eframe::egui::{self, Color32, RichText, Stroke, Vec2};
 
 pub struct Toolbar {
     search_query: String,
+    search_focused: bool,
 }
 
 impl Toolbar {
     pub fn new() -> Self {
-        Self {
-            search_query: String::new(),
-        }
+        Self { search_query: String::new(), search_focused: false }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, app: &mut DocLensApp) {
-        // Keyboard shortcuts (checked outside any widget so they always fire)
+        // ── Keyboard shortcuts ────────────────────────────────────────────
         ui.input_mut(|i| {
-            // Ctrl+O → open file
-            if i.consume_key(egui::Modifiers::CTRL, egui::Key::O) {
-                open_file_dialog(app);
-            }
-            // Arrow Left / Right → page navigation
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft)
-                || i.consume_key(egui::Modifiers::NONE, egui::Key::PageUp)
-            {
-                app.prev_page();
-            }
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight)
-                || i.consume_key(egui::Modifiers::NONE, egui::Key::PageDown)
-            {
-                app.next_page();
-            }
-            // Ctrl+= / Ctrl+- → zoom
-            if i.consume_key(egui::Modifiers::CTRL, egui::Key::Equals) {
-                app.zoom_in();
-            }
-            if i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus) {
-                app.zoom_out();
-            }
-            // Ctrl+0 → reset zoom
-            if i.consume_key(egui::Modifiers::CTRL, egui::Key::Num0) {
-                app.set_zoom(100.0);
-            }
+            use egui::{Key, Modifiers};
+            if i.consume_key(Modifiers::CTRL, Key::O) { open_file_dialog(app); }
+            if i.consume_key(Modifiers::NONE, Key::ArrowLeft)
+                || i.consume_key(Modifiers::NONE, Key::PageUp) { app.prev_page(); }
+            if i.consume_key(Modifiers::NONE, Key::ArrowRight)
+                || i.consume_key(Modifiers::NONE, Key::PageDown) { app.next_page(); }
+            if i.consume_key(Modifiers::CTRL, Key::Equals) { app.zoom_in(); }
+            if i.consume_key(Modifiers::CTRL, Key::Minus)  { app.zoom_out(); }
+            if i.consume_key(Modifiers::CTRL, Key::Num0)   { app.set_zoom(100.0); }
+            // Ctrl+F → focus search
+            if i.consume_key(Modifiers::CTRL, Key::F) { self.search_focused = true; }
         });
 
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
+        let has_doc = app.document.is_some();
 
-            // ── File ──────────────────────────────────────────────────────
-            if ui.button("📁 Open").on_hover_text("Open PDF (Ctrl+O)").clicked() {
-                open_file_dialog(app);
-            }
+        // Toolbar frame
+        egui::Frame::new()
+            .fill(super::theme::BG_SURFACE)
+            .inner_margin(egui::Margin { left: 8, right: 8, top: 5, bottom: 5 })
+            .stroke(Stroke::new(1.0, BORDER))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 3.0;
 
-            ui.separator();
+                    // ── Open ──────────────────────────────────────────────
+                    let open_r = ui.add(
+                        egui::Button::new(
+                            RichText::new("▤").size(15.0)
+                        )
+                        .min_size(Vec2::new(32.0, 28.0))
+                        .fill(BG_ELEVATED)
+                    ).on_hover_text("Open PDF  (Ctrl+O)");
+                    if open_r.clicked() { open_file_dialog(app); }
 
-            // ── Navigation ───────────────────────────────────────────────
-            let has_doc = app.document.is_some();
+                    divider(ui);
 
-            ui.add_enabled_ui(has_doc, |ui| {
-                if ui.button("◀").on_hover_text("Previous page (←)").clicked() {
-                    app.prev_page();
-                }
-
-                // Editable page number
-                let page_count = app.document.as_ref().map_or(1, |d| d.page_count());
-                let mut page_input = app.current_page + 1;
-                let drag = egui::DragValue::new(&mut page_input)
-                    .range(1..=page_count)
-                    .speed(1.0);
-                if ui.add_sized([42.0, 20.0], drag).changed() {
-                    app.goto_page(page_input.saturating_sub(1));
-                }
-                ui.label(format!("/ {page_count}"));
-
-                if ui.button("▶").on_hover_text("Next page (→)").clicked() {
-                    app.next_page();
-                }
-            });
-
-            ui.separator();
-
-            // ── Zoom ─────────────────────────────────────────────────────
-            ui.add_enabled_ui(has_doc, |ui| {
-                if ui.button("➖").on_hover_text("Zoom out (Ctrl+-)").clicked() {
-                    app.zoom_out();
-                }
-
-                // Editable zoom %
-                let mut zoom = app.zoom_level;
-                let drag = egui::DragValue::new(&mut zoom)
-                    .range(10.0..=500.0)
-                    .speed(1.0)
-                    .suffix("%");
-                if ui.add_sized([52.0, 20.0], drag).changed() {
-                    app.set_zoom(zoom);
-                }
-
-                if ui.button("➕").on_hover_text("Zoom in (Ctrl+=)").clicked() {
-                    app.zoom_in();
-                }
-                if ui.small_button("1:1").on_hover_text("Reset zoom (Ctrl+0)").clicked() {
-                    app.set_zoom(100.0);
-                }
-                if ui.small_button("Fit").on_hover_text("Fit page width").clicked() {
-                    // Rough fit — will be refined next frame when we know panel width
-                    app.set_zoom(100.0);
-                }
-            });
-
-            ui.separator();
-
-            // ── Rotation ─────────────────────────────────────────────────
-            ui.add_enabled_ui(has_doc, |ui| {
-                if ui.button("↶").on_hover_text("Rotate left 90°").clicked() {
-                    app.rotate_left();
-                }
-                if ui.button("↷").on_hover_text("Rotate right 90°").clicked() {
-                    app.rotate_right();
-                }
-            });
-
-            ui.separator();
-
-            // ── Search ────────────────────────────────────────────────────
-            ui.add_enabled_ui(has_doc, |ui| {
-                let search_response = ui.add_sized(
-                    [140.0, 20.0],
-                    egui::TextEdit::singleline(&mut self.search_query)
-                        .hint_text("🔍 Search…"),
-                );
-
-                let enter_pressed = search_response.lost_focus()
-                    && ui.input(|i| i.key_pressed(egui::Key::Enter));
-
-                if ui.button("Find").clicked() || enter_pressed {
-                    let q = self.search_query.trim().to_string();
-                    app.perform_search(q);
-                }
-
-                // Show result count and navigation
-                let count = app.search_manager.result_count();
-                if count > 0 {
-                    let idx = app.search_manager.current_index() + 1;
-                    ui.label(format!("{idx}/{count}"));
-
-                    if ui.small_button("◀").on_hover_text("Previous result").clicked() {
-                        if let Some(result) = app.search_manager.prev_result() {
-                            let page = result.page;
-                            app.goto_page(page);
+                    // ── Navigation ────────────────────────────────────────
+                    ui.add_enabled_ui(has_doc, |ui| {
+                        if theme::icon_btn(ui, "◀", "Previous page  (←)").clicked() {
+                            app.prev_page();
                         }
-                    }
-                    if ui.small_button("▶").on_hover_text("Next result").clicked() {
-                        if let Some(result) = app.search_manager.next_result() {
-                            let page = result.page;
-                            app.goto_page(page);
+
+                        let page_count = app.document.as_ref().map_or(1, |d| d.page_count());
+                        let mut page = app.current_page + 1;
+                        let dv = egui::DragValue::new(&mut page)
+                            .range(1..=page_count)
+                            .speed(1.0)
+                            .max_decimals(0);
+                        if ui.add_sized([38.0, 24.0], dv).changed() {
+                            app.goto_page(page.saturating_sub(1));
                         }
-                    }
-                    if ui.small_button("✕").on_hover_text("Clear search").clicked() {
-                        self.search_query.clear();
-                        app.search_manager.clear();
-                    }
-                }
+                        ui.label(
+                            RichText::new(format!("/ {page_count}"))
+                                .color(FG_SECONDARY).size(12.5)
+                        );
+
+                        if theme::icon_btn(ui, "▶", "Next page  (→)").clicked() {
+                            app.next_page();
+                        }
+                    });
+
+                    divider(ui);
+
+                    // ── Zoom ──────────────────────────────────────────────
+                    ui.add_enabled_ui(has_doc, |ui| {
+                        if theme::icon_btn(ui, "−", "Zoom out  (Ctrl+−)").clicked() {
+                            app.zoom_out();
+                        }
+
+                        let mut zoom = app.zoom_level;
+                        let dv = egui::DragValue::new(&mut zoom)
+                            .range(10.0..=500.0)
+                            .speed(1.0)
+                            .suffix("%")
+                            .max_decimals(0);
+                        if ui.add_sized([52.0, 24.0], dv).changed() {
+                            app.set_zoom(zoom);
+                        }
+
+                        if theme::icon_btn(ui, "+", "Zoom in  (Ctrl+=)").clicked() {
+                            app.zoom_in();
+                        }
+
+                        let r = ui.add(
+                            egui::Button::new(RichText::new("1:1").size(11.5).color(FG_SECONDARY))
+                                .min_size(Vec2::new(28.0, 24.0))
+                                .fill(Color32::TRANSPARENT)
+                        ).on_hover_text("Reset zoom  (Ctrl+0)");
+                        if r.clicked() { app.set_zoom(100.0); }
+                    });
+
+                    divider(ui);
+
+                    // ── Rotation ──────────────────────────────────────────
+                    ui.add_enabled_ui(has_doc, |ui| {
+                        if theme::icon_btn(ui, "↶", "Rotate left").clicked()  { app.rotate_left(); }
+                        if theme::icon_btn(ui, "↷", "Rotate right").clicked() { app.rotate_right(); }
+                    });
+
+                    divider(ui);
+
+                    // ── Search ────────────────────────────────────────────
+                    ui.add_enabled_ui(has_doc, |ui| {
+                        // Text input with inner icon
+                        let te = egui::TextEdit::singleline(&mut self.search_query)
+                            .desired_width(150.0)
+                            .hint_text("/ Search...")
+                            .font(egui::FontId::proportional(13.0));
+                        let te_r = ui.add_sized([150.0, 24.0], te);
+
+                        if self.search_focused {
+                            te_r.request_focus();
+                            self.search_focused = false;
+                        }
+
+                        let enter = te_r.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+                        let find_r = ui.add(
+                            egui::Button::new(RichText::new("Find").size(12.5))
+                                .min_size(Vec2::new(38.0, 24.0))
+                                .fill(BG_ELEVATED)
+                        );
+                        if find_r.clicked() || enter {
+                            app.perform_search(self.search_query.trim().to_string());
+                        }
+
+                        let count = app.search_manager.result_count();
+                        if count > 0 {
+                            let idx = app.search_manager.current_index() + 1;
+                            ui.label(
+                                RichText::new(format!("{idx}/{count}"))
+                                    .color(FG_ACCENT).size(12.0)
+                            );
+                            if theme::icon_btn(ui, "◀", "Previous result").clicked() {
+                                if let Some(r) = app.search_manager.prev_result() {
+                                    let p = r.page; app.goto_page(p);
+                                }
+                            }
+                            if theme::icon_btn(ui, "▶", "Next result").clicked() {
+                                if let Some(r) = app.search_manager.next_result() {
+                                    let p = r.page; app.goto_page(p);
+                                }
+                            }
+                            if theme::icon_btn(ui, "✕", "Clear search").clicked() {
+                                self.search_query.clear();
+                                app.search_manager.clear();
+                            }
+                        }
+                    });
+
+                    // ── Right-side toggles ────────────────────────────────
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing.x = 3.0;
+
+                        if theme::icon_toggle_btn(ui, "✦", "Annotation tools", app.tool_palette_visible).clicked() {
+                            app.tool_palette_visible = !app.tool_palette_visible;
+                        }
+                        if theme::icon_toggle_btn(ui, "▣", "Page thumbnails", app.sidebar_visible).clicked() {
+                            app.sidebar_visible = !app.sidebar_visible;
+                        }
+                    });
+                });
             });
-
-            ui.separator();
-
-            // ── View toggles ─────────────────────────────────────────────
-            let sidebar_label = if app.sidebar_visible { "📋 Hide Pages" } else { "📋 Pages" };
-            if ui.button(sidebar_label).clicked() {
-                app.sidebar_visible = !app.sidebar_visible;
-            }
-
-            let tools_label = if app.tool_palette_visible { "🎨 Hide Tools" } else { "🎨 Tools" };
-            if ui.button(tools_label).clicked() {
-                app.tool_palette_visible = !app.tool_palette_visible;
-            }
-        });
     }
+}
+
+fn divider(ui: &mut egui::Ui) {
+    ui.add_space(2.0);
+    ui.add(egui::Separator::default().vertical().spacing(6.0));
+    ui.add_space(2.0);
 }
 
 fn open_file_dialog(app: &mut DocLensApp) {
@@ -195,7 +204,5 @@ fn open_file_dialog(app: &mut DocLensApp) {
 }
 
 impl Default for Toolbar {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
