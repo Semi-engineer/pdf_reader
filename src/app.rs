@@ -47,6 +47,9 @@ pub struct DocLensApp {
     // Status / error message shown in status bar
     pub status_message: Option<String>,
 
+    // Currently selected text (from text-selection drag)
+    pub selected_text: Option<String>,
+
     // UI Components (private — only accessed through update())
     toolbar: Toolbar,
     sidebar: Sidebar,
@@ -87,6 +90,7 @@ impl DocLensApp {
             current_tool: None,
             current_color: egui::Color32::from_rgba_unmultiplied(255, 220, 0, 130),
             status_message: None,
+            selected_text: None,
             toolbar: Toolbar::new(),
             sidebar: Sidebar::new(),
             viewer: PdfViewer::new(),
@@ -251,6 +255,57 @@ impl DocLensApp {
         if let Some(first) = self.search_manager.results().first() {
             let page = first.page;
             self.goto_page(page);
+        }
+    }
+
+    // ─── Text Selection ───────────────────────────────────────────────────────
+
+    /// Extract text whose character bounding boxes overlap `screen_rect`.
+    /// `page_origin` is the top-left of the rendered page in screen space.
+    /// Returns the selected string and also stores it in `self.selected_text`.
+    pub fn select_text_in_rect(
+        &mut self,
+        page: usize,
+        screen_rect: egui::Rect,
+        page_origin: egui::Pos2,
+    ) -> String {
+        let doc = match &self.document {
+            Some(d) => Arc::clone(d),
+            None => return String::new(),
+        };
+
+        // The chars returned by get_chars_with_bounds are in page-local
+        // screen coords (origin at page top-left).  Translate rect to match.
+        let local_rect = screen_rect.translate(-page_origin.to_vec2());
+
+        match doc.get_chars_with_bounds(page, self.zoom_level) {
+            Ok(chars) => {
+                // Collect chars whose rect intersects the selection rect,
+                // preserving document order.
+                let selected: String = chars
+                    .iter()
+                    .filter(|(_, r)| r.intersects(local_rect))
+                    .map(|(c, _)| *c)
+                    .collect();
+
+                self.selected_text = if selected.is_empty() {
+                    None
+                } else {
+                    Some(selected.clone())
+                };
+                selected
+            }
+            Err(e) => {
+                eprintln!("Text selection error: {e}");
+                String::new()
+            }
+        }
+    }
+
+    /// Copy currently selected text to the system clipboard.
+    pub fn copy_selected_text(&self, ctx: &egui::Context) {
+        if let Some(text) = &self.selected_text {
+            ctx.copy_text(text.clone());
         }
     }
 

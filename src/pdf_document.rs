@@ -98,6 +98,57 @@ impl PdfDocument {
         Ok(text.all())
     }
 
+    /// Return all characters on a page with their bounding boxes already
+    /// scaled to screen pixels at `zoom` %.  Y is flipped (egui top-left).
+    ///
+    /// Each entry is `(char, screen_rect)`.
+    pub fn get_chars_with_bounds(
+        &self,
+        page_index: usize,
+        zoom: f32,
+    ) -> Result<Vec<(char, egui::Rect)>> {
+        let pdfium = Self::bind()?;
+        let document = pdfium
+            .load_pdf_from_file(&self.path, None)
+            .context("Failed to load PDF file")?;
+        let page = document
+            .pages()
+            .get(page_index as u16)
+            .context("Invalid page index")?;
+
+        let scale = zoom / 100.0;
+        let page_h = page.height().value;
+        let text_obj = page.text().context("Failed to get page text")?;
+
+        let mut result: Vec<(char, egui::Rect)> = Vec::new();
+
+        for ch in text_obj.chars().iter() {
+            let c = match ch.unicode_char() {
+                Some(c) => c,
+                None => continue,
+            };
+
+            if let Ok(b) = ch.loose_bounds() {
+                let x0 = b.left().value * scale;
+                let y0 = (page_h - b.top().value) * scale;
+                let x1 = b.right().value * scale;
+                let y1 = (page_h - b.bottom().value) * scale;
+
+                // Ensure min/max ordering (PDF rects can have bottom > top)
+                let rect = egui::Rect::from_min_max(
+                    egui::pos2(x0.min(x1), y0.min(y1)),
+                    egui::pos2(x0.max(x1), y0.max(y1)),
+                );
+
+                if rect.width() > 0.0 || rect.height() > 0.0 {
+                    result.push((c, rect));
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     /// Search for `query` on a page.
     ///
     /// Returns bounding boxes already **scaled to screen pixels** for the
