@@ -666,20 +666,33 @@ impl PdfViewer {
         page: usize,
         page_origin: egui::Pos2,
     ) {
-        let results = app.search_manager.page_results(page);
+        let all_results = app.search_manager.results();
         let current_idx = app.search_manager.current_index();
-        for (i, result) in results.iter().enumerate() {
-            let sr = result.rect.translate(page_origin.to_vec2());
-            let color = if i == current_idx {
+        let scale = app.zoom_level / 100.0;
+        
+        for (global_idx, result) in all_results.iter().enumerate() {
+            if result.page != page {
+                continue;
+            }
+            
+            let mut scaled_rect = result.rect;
+            scaled_rect.min.x *= scale;
+            scaled_rect.min.y *= scale;
+            scaled_rect.max.x *= scale;
+            scaled_rect.max.y *= scale;
+            
+            let sr = scaled_rect.translate(page_origin.to_vec2());
+            let is_current = global_idx == current_idx;
+            let color = if is_current {
                 *SEARCH_CURRENT
             } else {
                 *SEARCH_BG
             };
             ui.painter().rect_filled(sr, 1.0, color);
-            if i == current_idx {
+            if is_current {
                 ui.painter().rect_stroke(
                     sr, 1.0,
-                    egui::Stroke::new(1.0, FG_WARNING),
+                    egui::Stroke::new(2.0, FG_WARNING),
                     egui::StrokeKind::Outside,
                 );
             }

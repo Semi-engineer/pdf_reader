@@ -151,14 +151,13 @@ impl PdfDocument {
 
     /// Search for `query` on a page.
     ///
-    /// Returns bounding boxes already **scaled to screen pixels** for the
-    /// given `zoom` percentage.  Y-axis is flipped to match egui's top-left
-    /// origin (PDF origin is bottom-left).
+    /// Returns bounding boxes in **unscaled PDF points** (Y flipped for egui).
+    /// Uses per-character `loose_bounds()` — the same coordinate source as
+    /// `get_chars_with_bounds()` — so highlights line up with text selection.
     pub fn search_page(
         &self,
         page_index: usize,
         query: &str,
-        zoom: f32,
     ) -> Result<Vec<egui::Rect>> {
         if query.is_empty() {
             return Ok(vec![]);
@@ -173,48 +172,79 @@ impl PdfDocument {
             .get(page_index as u16)
             .context("Invalid page index")?;
 
-        let scale = zoom / 100.0;
-        let page_height_pts = page.height().value;
-
+        let page_h = page.height().value;
         let text_obj = page.text().context("Failed to get page text")?;
-        let options = PdfSearchOptions::new().match_case(false);
-        let search = text_obj.search(query, &options)?;
 
+        // Build parallel vectors: chars (for string matching) and their rects
+        // in unscaled PDF points with Y flipped (egui top-left origin).
+        let mut chars: Vec<char> = Vec::new();
+        let mut rects: Vec<Option<egui::Rect>> = Vec::new();
+
+        for ch in text_obj.chars().iter() {
+            let c = match ch.unicode_char() {
+                Some(c) => c,
+                None => continue,
+            };
+
+            let rect = if let Ok(b) = ch.loose_bounds() {
+                let x0 = b.left().value;
+                let y0 = page_h - b.top().value;
+                let x1 = b.right().value;
+                let y1 = page_h - b.bottom().value;
+                Some(egui::Rect::from_min_max(
+                    egui::pos2(x0.min(x1), y0.min(y1)),
+                    egui::pos2(x0.max(x1), y0.max(y1)),
+                ))
+            } else {
+                None
+            };
+
+            chars.push(c);
+            rects.push(rect);
+        }
+
+        // Case-insensitive search on the collected text
+        let text_lower: String = chars.iter().collect::<String>().to_lowercase();
+        let query_lower = query.to_lowercase();
+        let query_chars: Vec<char> = query_lower.chars().collect();
+        let query_len = query_chars.len();
+
+        if query_len == 0 {
+            return Ok(vec![]);
+        }
+
+        let text_chars: Vec<char> = text_lower.chars().collect();
         let mut results: Vec<egui::Rect> = Vec::new();
 
-        loop {
-            match search.find_next() {
-                Some(segments) => {
-                    // Merge all segments in this match into one bounding box
-                    let mut min_x = f32::MAX;
-                    let mut min_y = f32::MAX;
-                    let mut max_x = f32::MIN;
-                    let mut max_y = f32::MIN;
-                    let mut found_any = false;
+        let mut pos = 0usize;
+        while pos + query_len <= text_chars.len() {
+            if text_chars[pos..pos + query_len] == query_chars[..] {
+                // Merge bounding rects of matched characters
+                let mut min_x = f32::MAX;
+                let mut min_y = f32::MAX;
+                let mut max_x = f32::MIN;
+                let mut max_y = f32::MIN;
+                let mut found_any = false;
 
-                    for seg in segments.iter() {
-                        let b = seg.bounds();
-                        // PDF: origin bottom-left, flip Y for egui (top-left)
-                        let x0 = b.left().value * scale;
-                        let y0 = (page_height_pts - b.top().value) * scale;
-                        let x1 = b.right().value * scale;
-                        let y1 = (page_height_pts - b.bottom().value) * scale;
-
-                        min_x = min_x.min(x0).min(x1);
-                        min_y = min_y.min(y0).min(y1);
-                        max_x = max_x.max(x0).max(x1);
-                        max_y = max_y.max(y0).max(y1);
+                for r in &rects[pos..pos + query_len] {
+                    if let Some(rect) = r {
+                        min_x = min_x.min(rect.min.x);
+                        min_y = min_y.min(rect.min.y);
+                        max_x = max_x.max(rect.max.x);
+                        max_y = max_y.max(rect.max.y);
                         found_any = true;
                     }
-
-                    if found_any {
-                        results.push(egui::Rect::from_min_max(
-                            egui::pos2(min_x, min_y),
-                            egui::pos2(max_x, max_y),
-                        ));
-                    }
                 }
-                None => break,
+
+                if found_any {
+                    results.push(egui::Rect::from_min_max(
+                        egui::pos2(min_x, min_y),
+                        egui::pos2(max_x, max_y),
+                    ));
+                }
+                pos += query_len; // skip past this match
+            } else {
+                pos += 1;
             }
         }
 

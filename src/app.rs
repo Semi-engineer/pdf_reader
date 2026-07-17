@@ -290,11 +290,10 @@ impl DocLensApp {
 
         self.search_manager.set_query(query.clone());
 
-        let zoom = self.zoom_level;
         let mut results: Vec<SearchResult> = Vec::new();
 
         for page in 0..doc.page_count() {
-            match doc.search_page(page, &query, zoom) {
+            match doc.search_page(page, &query) {
                 Ok(rects) => {
                     for rect in rects {
                         results.push(SearchResult {
