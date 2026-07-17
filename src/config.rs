@@ -12,13 +12,9 @@ pub struct Settings {
     pub last_file: Option<String>,
     pub last_page: Option<usize>,
     pub last_zoom: Option<f32>,
-    pub sidebar_visible: bool,
     pub dark_mode: bool,
     pub window_width: f32,
     pub window_height: f32,
-    pub tool_palette_visible: bool,
-    pub tool_palette_x: f32,
-    pub tool_palette_y: f32,
     pub current_tool: Option<String>,
     pub annotation_color: [u8; 4], // RGBA
 }
@@ -29,13 +25,9 @@ impl Default for Settings {
             last_file: None,
             last_page: None,
             last_zoom: Some(100.0),
-            sidebar_visible: true,
             dark_mode: false,
             window_width: 1200.0,
             window_height: 800.0,
-            tool_palette_visible: true,
-            tool_palette_x: 1000.0,
-            tool_palette_y: 100.0,
             current_tool: None,
             annotation_color: [255, 255, 0, 100], // Yellow with transparency
         }

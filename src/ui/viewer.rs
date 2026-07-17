@@ -11,6 +11,8 @@ Modes:
 use crate::annotation::{Annotation, AnnotationRect, AnnotationType};
 use crate::app::DocLensApp;
 use crate::page_cache::CacheKey;
+use crate::ui::icons;
+use crate::ui::theme::*;
 use eframe::egui;
 
 // ─── Internal state structs ───────────────────────────────────────────────────
@@ -69,14 +71,47 @@ impl PdfViewer {
 
     pub fn show(&mut self, ui: &mut egui::Ui, app: &mut DocLensApp) {
         if app.document.is_none() {
+            // ── Polished empty state ──────────────────────────────────────
+            let bg_rect = ui.max_rect();
+            ui.painter().rect_filled(bg_rect, 0.0, BG_WORKSPACE);
+
             ui.centered_and_justified(|ui| {
                 ui.vertical_centered(|ui| {
-                    ui.add_space(60.0);
-                    ui.heading("DocLens");
-                    ui.add_space(10.0);
-                    ui.label("Open a PDF file to get started.");
-                    ui.add_space(20.0);
-                    if ui.button("  Open PDF...  ").clicked() {
+                    ui.add_space(SP_XXL * 2.0);
+
+                    // Large document icon
+                    icons::draw_pdf_icon(ui, egui::vec2(64.0, 64.0));
+
+                    ui.add_space(SP_LG);
+
+                    ui.label(
+                        egui::RichText::new("DocLens")
+                            .size(FONT_SIZE_HEADING)
+                            .color(FG_PRIMARY)
+                            .strong()
+                    );
+
+                    ui.add_space(SP_SM);
+
+                    ui.label(
+                        egui::RichText::new("Open a PDF file to get started")
+                            .size(FONT_SIZE_BODY)
+                            .color(FG_SECONDARY)
+                    );
+
+                    ui.add_space(SP_XL);
+
+                    let btn = egui::Button::new(
+                        egui::RichText::new(format!("{}  Open PDF...", icons::ICON_OPEN))
+                            .size(FONT_SIZE_BODY)
+                            .color(egui::Color32::WHITE)
+                    )
+                    .fill(BG_ACTIVE)
+                    .stroke(egui::Stroke::NONE)
+                    .corner_radius(egui::CornerRadius::same(RADIUS_MD as u8))
+                    .min_size(egui::vec2(160.0, 36.0));
+
+                    if ui.add(btn).clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("PDF Files", &["pdf"])
                             .pick_file()
@@ -84,6 +119,14 @@ impl PdfViewer {
                             let _ = app.open_file(&path.to_string_lossy());
                         }
                     }
+
+                    ui.add_space(SP_MD);
+
+                    ui.label(
+                        egui::RichText::new("Ctrl+O")
+                            .size(FONT_SIZE_CAPTION)
+                            .color(FG_TERTIARY)
+                    );
                 });
             });
             return;
@@ -188,16 +231,20 @@ impl PdfViewer {
             let img_size = egui::vec2(image.width() as f32, image.height() as f32);
             let available_w = ui.available_width();
             let left_pad = ((available_w - img_size.x) / 2.0).max(0.0);
-            ui.add_space(8.0);
+            ui.add_space(SP_LG);
 
             let (page_rect, response) = ui.allocate_exact_size(
-                img_size + egui::vec2(left_pad * 2.0, 16.0),
+                img_size + egui::vec2(left_pad * 2.0, SP_LG),
                 egui::Sense::click_and_drag(),
             );
-            let page_origin = egui::pos2(page_rect.min.x + left_pad, page_rect.min.y + 8.0);
+            let page_origin = egui::pos2(page_rect.min.x + left_pad, page_rect.min.y + SP_SM);
             let image_rect = egui::Rect::from_min_size(page_origin, img_size);
 
-            // Draw page
+            // Page shadow
+            let shadow = page_shadow();
+            ui.painter().add(shadow.as_shape(image_rect, RADIUS_SM));
+
+            // Draw page texture
             let texture = ui.ctx().load_texture(
                 format!("page_{}_{:.0}_{}", page, app.zoom_level, app.rotation),
                 image.as_ref().clone(),
@@ -209,18 +256,19 @@ impl PdfViewer {
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                 egui::Color32::WHITE,
             );
+
+            // Page border
+            let border = page_border();
             ui.painter().rect_stroke(
                 image_rect,
-                2.0,
-                egui::Stroke::new(1.0, egui::Color32::from_black_alpha(60)),
+                RADIUS_SM,
+                border,
                 egui::StrokeKind::Outside,
             );
 
             if app.current_tool.is_some() {
-                // ── Annotation mode ───────────────────────────────────────
                 self.handle_annotation_input(ui, app, page, page_origin, &response);
             } else {
-                // ── Text-selection mode ───────────────────────────────────
                 self.handle_text_selection(ui, app, page, page_origin, &response);
             }
 
@@ -228,17 +276,18 @@ impl PdfViewer {
             self.draw_annotations(ui, app, page, page_origin);
             self.draw_search_results(ui, app, page, page_origin);
         } else {
+            // Loading skeleton placeholder
             let (rect, _) = ui.allocate_exact_size(
                 egui::vec2(ui.available_width(), 400.0),
                 egui::Sense::hover(),
             );
-            ui.painter().rect_filled(rect, 4.0, egui::Color32::from_gray(240));
+            ui.painter().rect_filled(rect, RADIUS_SM, BG_ELEVATED);
             ui.painter().text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
                 format!("Loading page {}...", page + 1),
-                egui::FontId::proportional(16.0),
-                egui::Color32::GRAY,
+                egui::FontId::proportional(FONT_SIZE_BODY),
+                FG_TERTIARY,
             );
         }
     }
@@ -343,8 +392,8 @@ impl PdfViewer {
             _ => return,
         };
 
-        let sel_color = egui::Color32::from_rgba_unmultiplied(51, 153, 255, 80);
-        let border_color = egui::Color32::from_rgba_unmultiplied(51, 153, 255, 180);
+        let sel_color = *SELECTION_BG;
+        let border_color = BORDER_FOCUS;
 
         if sel.char_rects.is_empty() {
             // Still dragging — draw a simple rubber-band rect
@@ -369,21 +418,25 @@ impl PdfViewer {
                 sel.end.x.max(sel.start.x) + 6.0,
                 sel.end.y.min(sel.start.y) - 18.0,
             );
-            let hint_bg = egui::Color32::from_rgba_unmultiplied(30, 30, 30, 200);
+            let hint_bg = BG_BASE;
             let hint_text = "Ctrl+C to copy";
             let galley = ui.painter().layout_no_wrap(
                 hint_text.to_string(),
-                egui::FontId::proportional(11.0),
-                egui::Color32::WHITE,
+                egui::FontId::proportional(FONT_SIZE_TINY),
+                FG_PRIMARY,
             );
             let hint_rect = egui::Rect::from_min_size(
                 hint_pos,
-                galley.size() + egui::vec2(6.0, 4.0),
+                galley.size() + egui::vec2(SP_SM, SP_XS),
             );
-            // Keep hint inside the viewport
-            let _ = page_origin; // used for future clipping
-            ui.painter().rect_filled(hint_rect, 3.0, hint_bg);
-            ui.painter().galley(hint_pos + egui::vec2(3.0, 2.0), galley, egui::Color32::WHITE);
+            let _ = page_origin;
+            ui.painter().rect_filled(hint_rect, RADIUS_SM, hint_bg);
+            ui.painter().rect_stroke(
+                hint_rect, RADIUS_SM,
+                egui::Stroke::new(1.0, BORDER),
+                egui::StrokeKind::Outside,
+            );
+            ui.painter().galley(hint_pos + egui::vec2(SP_XS, 2.0), galley, FG_PRIMARY);
         }
     }
 
@@ -618,16 +671,18 @@ impl PdfViewer {
         for (i, result) in results.iter().enumerate() {
             let sr = result.rect.translate(page_origin.to_vec2());
             let color = if i == current_idx {
-                egui::Color32::from_rgba_unmultiplied(255, 140, 0, 160)
+                *SEARCH_CURRENT
             } else {
-                egui::Color32::from_rgba_unmultiplied(255, 230, 0, 100)
+                *SEARCH_BG
             };
             ui.painter().rect_filled(sr, 1.0, color);
-            ui.painter().rect_stroke(
-                sr, 1.0,
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(200, 100, 0)),
-                egui::StrokeKind::Outside,
-            );
+            if i == current_idx {
+                ui.painter().rect_stroke(
+                    sr, 1.0,
+                    egui::Stroke::new(1.0, FG_WARNING),
+                    egui::StrokeKind::Outside,
+                );
+            }
         }
     }
 }

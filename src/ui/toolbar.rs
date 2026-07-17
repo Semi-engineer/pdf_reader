@@ -1,11 +1,16 @@
 /*!
 Toolbar — Modern, compact, icon-first top bar
-Reorganized into logical groups: File | Navigation | View | Search | Annotation
+Reorganized into logical groups: File | Navigation | View | Annotation | Search
+Annotation tools integrated from the former ToolPalette.
+Uses Design System tokens and shared icon_button component.
 */
 
-use super::theme::*;
+use crate::ui::theme::*;
+use crate::ui::icons;
+use crate::ui::components::{icon_button, toolbar_divider};
+use crate::annotation::AnnotationType;
 use crate::app::DocLensApp;
-use eframe::egui::{self, Color32, RichText, Stroke, Vec2};
+use eframe::egui::{self, RichText, Stroke};
 
 pub struct Toolbar {
     search_query: String,
@@ -35,30 +40,29 @@ impl Toolbar {
         let has_doc = app.document.is_some();
 
         // ══════════════════════════════════════════════════════════════════
-        // TOOLBAR STRUCTURE (Industrial Minimal)
-        // ══════════════════════════════════════════════════════════════════
-        // File | Navigation | View | Search                      | Inspector
+        // TOOLBAR LAYOUT
+        // File | Navigation | View | Annotation | Search        | Inspector
         // ══════════════════════════════════════════════════════════════════
 
         egui::Frame::new()
             .fill(BG_SURFACE)
-            .inner_margin(egui::Margin::symmetric(8, 4))
+            .inner_margin(egui::Margin::symmetric(SP_SM as i8, SP_XS as i8))
             .stroke(Stroke::new(1.0, BORDER))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
-                    ui.set_height(TOOLBAR_HEIGHT - 8.0);
+                    ui.set_height(TOOLBAR_HEIGHT - SP_SM);
 
                     // ═══ FILE GROUP ═══════════════════════════════════════
-                    if icon_btn(ui, "📂", "Open  (Ctrl+O)", false).clicked() {
+                    if icon_button(ui, icons::ICON_OPEN, "Open  (Ctrl+O)", false).clicked() {
                         open_file_dialog(app);
                     }
-                    
+
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if icon_btn(ui, "💾", "Save", false).clicked() {
+                        if icon_button(ui, icons::ICON_SAVE, "Save", false).clicked() {
                             app.status_message = Some("Save not yet implemented".into());
                         }
-                        if icon_btn(ui, "🖨", "Print", false).clicked() {
+                        if icon_button(ui, icons::ICON_PRINT, "Print", false).clicked() {
                             app.status_message = Some("Print not yet implemented".into());
                         }
                     });
@@ -67,14 +71,14 @@ impl Toolbar {
 
                     // ═══ NAVIGATION GROUP ═════════════════════════════════
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if icon_btn(ui, "◀", "Previous  (←)", false).clicked() {
+                        if icon_button(ui, icons::ICON_PREV, "Previous  (←)", false).clicked() {
                             app.prev_page();
                         }
 
                         // Page number input
                         let page_count = app.document.as_ref().map_or(1, |d| d.page_count());
                         let mut page = app.current_page + 1;
-                        
+
                         ui.add_space(2.0);
                         let dv = egui::DragValue::new(&mut page)
                             .range(1..=page_count)
@@ -83,15 +87,15 @@ impl Toolbar {
                         if ui.add_sized([40.0, 22.0], dv).changed() {
                             app.goto_page(page.saturating_sub(1));
                         }
-                        
+
                         ui.label(
                             RichText::new(format!("/ {}", page_count))
                                 .color(FG_TERTIARY)
-                                .size(FONT_SIZE_SMALL)
+                                .size(FONT_SIZE_CAPTION)
                         );
                         ui.add_space(2.0);
 
-                        if icon_btn(ui, "▶", "Next  (→)", false).clicked() {
+                        if icon_button(ui, icons::ICON_NEXT, "Next  (→)", false).clicked() {
                             app.next_page();
                         }
                     });
@@ -100,7 +104,7 @@ impl Toolbar {
 
                     // ═══ VIEW GROUP ═══════════════════════════════════════
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if icon_btn(ui, "−", "Zoom out  (Ctrl+−)", false).clicked() {
+                        if icon_button(ui, icons::ICON_ZOOM_OUT, "Zoom out  (Ctrl+−)", false).clicked() {
                             app.zoom_out();
                         }
 
@@ -117,42 +121,72 @@ impl Toolbar {
                         }
                         ui.add_space(2.0);
 
-                        if icon_btn(ui, "+", "Zoom in  (Ctrl++)", false).clicked() {
+                        if icon_button(ui, icons::ICON_ZOOM_IN, "Zoom in  (Ctrl++)", false).clicked() {
                             app.zoom_in();
                         }
 
-                        ui.add_space(4.0);
-                        
-                        if icon_btn(ui, "⊡", "Fit page", false).clicked() {
+                        ui.add_space(SP_XS);
+
+                        if icon_button(ui, icons::ICON_FIT_PAGE, "Fit page", false).clicked() {
                             app.status_message = Some("Fit page not yet implemented".into());
                         }
-                        if icon_btn(ui, "⊟", "Fit width", false).clicked() {
+                        if icon_button(ui, icons::ICON_FIT_WIDTH, "Fit width", false).clicked() {
                             app.status_message = Some("Fit width not yet implemented".into());
                         }
 
                         toolbar_divider(ui);
 
                         // Rotation
-                        if icon_btn(ui, "↺", "Rotate left", false).clicked() {
+                        if icon_button(ui, icons::ICON_ROTATE_LEFT, "Rotate left", false).clicked() {
                             app.rotate_left();
                         }
-                        if icon_btn(ui, "↻", "Rotate right", false).clicked() {
+                        if icon_button(ui, icons::ICON_ROTATE_RIGHT, "Rotate right", false).clicked() {
                             app.rotate_right();
                         }
                     });
 
                     toolbar_divider(ui);
 
+                    // ═══ ANNOTATION GROUP ═════════════════════════════════
+                    ui.add_enabled_ui(has_doc, |ui| {
+                        let sel_active = app.current_tool.is_none();
+                        if icon_button(ui, icons::ICON_SELECT, "Select / Text", sel_active).clicked() {
+                            app.current_tool = None;
+                        }
+
+                        let tools: &[(&str, AnnotationType, &str)] = &[
+                            (icons::ICON_HIGHLIGHT, AnnotationType::Highlight, "Highlight"),
+                            (icons::ICON_PEN,       AnnotationType::Pen,       "Pen"),
+                            (icons::ICON_TEXT,      AnnotationType::Text,      "Text note"),
+                        ];
+
+                        for (icon, tool_type, tooltip) in tools {
+                            let active = app.current_tool.as_ref() == Some(tool_type);
+                            if icon_button(ui, icon, tooltip, active).clicked() {
+                                app.current_tool = if active { None } else { Some(tool_type.clone()) };
+                            }
+                        }
+
+                        // Color picker (compact)
+                        ui.add_space(2.0);
+                        egui::color_picker::color_edit_button_srgba(
+                            ui,
+                            &mut app.current_color,
+                            egui::color_picker::Alpha::OnlyBlend,
+                        );
+                    });
+
+                    toolbar_divider(ui);
+
                     // ═══ SEARCH GROUP ═════════════════════════════════════
                     ui.add_enabled_ui(has_doc, |ui| {
-                        // Unified search field with icon
-                        ui.add_space(4.0);
-                        
+                        ui.add_space(SP_XS);
+
                         let te = egui::TextEdit::singleline(&mut self.search_query)
-                            .hint_text("🔍 Search document...")
+                            .hint_text(format!("{} Search document...", icons::ICON_SEARCH_DOC))
                             .desired_width(200.0)
-                            .font(egui::FontId::proportional(FONT_SIZE_UI));
-                        
+                            .font(egui::FontId::proportional(FONT_SIZE_BODY));
+
                         let te_r = ui.add_sized([200.0, 22.0], te);
 
                         if self.search_focused {
@@ -167,30 +201,30 @@ impl Toolbar {
                             app.perform_search(self.search_query.trim().to_string());
                         }
 
-                        // Search navigation (only show when there are results)
+                        // Search navigation
                         let count = app.search_manager.result_count();
                         if count > 0 {
-                            ui.add_space(4.0);
+                            ui.add_space(SP_XS);
                             let idx = app.search_manager.current_index() + 1;
                             ui.label(
                                 RichText::new(format!("{}/{}", idx, count))
                                     .color(FG_ACCENT)
-                                    .size(FONT_SIZE_SMALL)
+                                    .size(FONT_SIZE_CAPTION)
                             );
-                            
-                            if icon_btn(ui, "▲", "Previous result", false).clicked() {
+
+                            if icon_button(ui, icons::ICON_PREV_RESULT, "Previous result", false).clicked() {
                                 let page = app.search_manager.prev_result().map(|r| r.page);
                                 if let Some(p) = page {
                                     app.goto_page(p);
                                 }
                             }
-                            if icon_btn(ui, "▼", "Next result", false).clicked() {
+                            if icon_button(ui, icons::ICON_NEXT_RESULT, "Next result", false).clicked() {
                                 let page = app.search_manager.next_result().map(|r| r.page);
                                 if let Some(p) = page {
                                     app.goto_page(p);
                                 }
                             }
-                            if icon_btn(ui, "✕", "Clear search", false).clicked() {
+                            if icon_button(ui, icons::ICON_CLEAR, "Clear search", false).clicked() {
                                 self.search_query.clear();
                                 app.search_manager.clear();
                             }
@@ -201,68 +235,14 @@ impl Toolbar {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 2.0;
 
-                        // Toggle inspector (right sidebar)
                         let inspector_active = app.workspace.right_sidebar_visible;
-                        if icon_btn(ui, "ℹ", "Inspector", inspector_active).clicked() {
+                        if icon_button(ui, icons::ICON_INSPECTOR, "Inspector", inspector_active).clicked() {
                             app.workspace.toggle_right_sidebar();
                         }
                     });
                 });
             });
     }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// HELPER FUNCTIONS
-// ══════════════════════════════════════════════════════════════════════════════
-
-/// Toolbar divider (thin vertical line)
-fn toolbar_divider(ui: &mut egui::Ui) {
-    ui.add_space(4.0);
-    ui.add(
-        egui::Separator::default()
-            .vertical()
-            .spacing(4.0)
-    );
-    ui.add_space(4.0);
-}
-
-/// Icon button for toolbar (square, 28x28)
-fn icon_btn(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool) -> egui::Response {
-    let size = Vec2::splat(28.0);
-    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
-
-    let bg = if active {
-        BG_ACTIVE
-    } else if response.hovered() {
-        BG_HOVER
-    } else {
-        Color32::TRANSPARENT
-    };
-
-    let fg = if active {
-        Color32::WHITE
-    } else if response.hovered() {
-        FG_PRIMARY
-    } else {
-        FG_SECONDARY
-    };
-
-    // Background
-    if bg != Color32::TRANSPARENT {
-        ui.painter().rect_filled(rect, 2.0, bg);
-    }
-
-    // Icon
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        icon,
-        egui::FontId::proportional(14.0),
-        fg,
-    );
-
-    response.on_hover_text(tooltip)
 }
 
 /// Open file dialog

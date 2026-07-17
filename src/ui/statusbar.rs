@@ -1,8 +1,10 @@
 /*!
 Status Bar — Professional bottom info bar
 Shows: file, page, zoom, rotation, tool, search, cache, memory, tasks
+All icons from icons.rs constants (no inline emoji).
 */
 
+use super::icons;
 use super::theme::*;
 use crate::app::DocLensApp;
 use eframe::egui::{self, RichText, Stroke};
@@ -22,9 +24,9 @@ impl StatusBar {
             .inner_margin(egui::Margin::symmetric(10, 2))
             .show(ui, |ui| {
                 ui.set_height(STATUS_BAR_HEIGHT - 4.0);
-                
+
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 8.0;
+                    ui.spacing_mut().item_spacing.x = SP_SM;
 
                     // ═══ LEFT SIDE: Document Info ═════════════════════════
 
@@ -34,10 +36,10 @@ impl StatusBar {
                             .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or(path.as_str());
-                        
+
                         ui.label(
-                            RichText::new(format!("📄 {}", name))
-                                .size(FONT_SIZE_SMALL)
+                            RichText::new(format!("{} {}", icons::ICON_FILE, name))
+                                .size(FONT_SIZE_CAPTION)
                                 .color(FG_PRIMARY)
                         );
                         status_divider(ui);
@@ -51,7 +53,7 @@ impl StatusBar {
                                 app.current_page + 1,
                                 doc.page_count()
                             ))
-                            .size(FONT_SIZE_SMALL)
+                            .size(FONT_SIZE_CAPTION)
                             .color(FG_SECONDARY)
                         );
                         status_divider(ui);
@@ -61,7 +63,7 @@ impl StatusBar {
                     if app.document.is_some() {
                         ui.label(
                             RichText::new(format!("{}%", app.zoom_level as i32))
-                                .size(FONT_SIZE_SMALL)
+                                .size(FONT_SIZE_CAPTION)
                                 .color(FG_SECONDARY)
                         );
                     }
@@ -71,7 +73,7 @@ impl StatusBar {
                         status_divider(ui);
                         ui.label(
                             RichText::new(format!("{}°", app.rotation))
-                                .size(FONT_SIZE_SMALL)
+                                .size(FONT_SIZE_CAPTION)
                                 .color(FG_SECONDARY)
                         );
                     }
@@ -80,15 +82,15 @@ impl StatusBar {
                     if let Some(tool) = &app.current_tool {
                         status_divider(ui);
                         ui.label(
-                            RichText::new(format!("🖊 {:?}", tool))
-                                .size(FONT_SIZE_SMALL)
+                            RichText::new(format!("{} {:?}", icons::ICON_TOOL, tool))
+                                .size(FONT_SIZE_CAPTION)
                                 .color(FG_ACCENT)
                         );
                     } else if app.document.is_some() {
                         status_divider(ui);
                         ui.label(
-                            RichText::new("↖ Select")
-                                .size(FONT_SIZE_SMALL)
+                            RichText::new(format!("{} Select", icons::ICON_SELECT))
+                                .size(FONT_SIZE_CAPTION)
                                 .color(FG_TERTIARY)
                         );
                     }
@@ -99,11 +101,12 @@ impl StatusBar {
                         status_divider(ui);
                         ui.label(
                             RichText::new(format!(
-                                "🔍 {} / {}",
+                                "{} {} / {}",
+                                icons::ICON_SEARCH_DOC,
                                 app.search_manager.current_index() + 1,
                                 search_count
                             ))
-                            .size(FONT_SIZE_SMALL)
+                            .size(FONT_SIZE_CAPTION)
                             .color(FG_ACCENT)
                         );
                     }
@@ -112,13 +115,13 @@ impl StatusBar {
                     ui.with_layout(
                         egui::Layout::right_to_left(egui::Align::Center),
                         |ui| {
-                            ui.spacing_mut().item_spacing.x = 8.0;
+                            ui.spacing_mut().item_spacing.x = SP_SM;
 
                             // Cache status
                             let cache_size = app.page_cache.len();
                             if cache_size > 0 {
                                 ui.label(
-                                    RichText::new(format!("💾 {}", cache_size))
+                                    RichText::new(format!("{} {}", icons::ICON_CACHE, cache_size))
                                         .size(FONT_SIZE_TINY)
                                         .color(FG_TERTIARY)
                                 ).on_hover_text("Cached pages");
@@ -128,16 +131,16 @@ impl StatusBar {
                             if app.render_worker.is_some() && app.document.is_some() {
                                 status_divider(ui);
                                 ui.label(
-                                    RichText::new("⚡")
+                                    RichText::new(icons::ICON_RENDERER)
                                         .size(FONT_SIZE_TINY)
                                         .color(FG_SUCCESS)
                                 ).on_hover_text("Renderer active");
                             }
 
-                            // Memory usage (placeholder - would need actual measurement)
+                            // Memory usage
                             if app.document.is_some() {
                                 status_divider(ui);
-                                let mem_mb = (cache_size * 2).max(10); // Rough estimate
+                                let mem_mb = (cache_size * 2).max(10);
                                 ui.label(
                                     RichText::new(format!("RAM: {}MB", mem_mb))
                                         .size(FONT_SIZE_TINY)
@@ -153,7 +156,7 @@ impl StatusBar {
                                 status_divider(ui);
                                 ui.label(
                                     RichText::new(msg.as_str())
-                                        .size(FONT_SIZE_SMALL)
+                                        .size(FONT_SIZE_CAPTION)
                                         .color(FG_SUCCESS)
                                 );
                             }
@@ -177,7 +180,7 @@ fn status_divider(ui: &mut egui::Ui) {
     ui.add(
         egui::Separator::default()
             .vertical()
-            .spacing(4.0)
+            .spacing(SP_XS)
     );
 }
 

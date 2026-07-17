@@ -15,7 +15,7 @@ use crate::render_worker::{RenderResponse, RenderWorker};
 use crate::search::{SearchManager, SearchResult};
 use crate::texture_pool::TexturePool;
 use crate::thumbnail_manager::ThumbnailManager;
-use crate::ui::{ActivityBar, PdfViewer, Sidebar, StatusBar, ToolPalette, Toolbar};
+use crate::ui::{ActivityBar, PdfViewer, StatusBar, Toolbar};
 use crate::ui::panels::{CommandPalette, LeftSidebar, RightSidebar, show_menubar};
 use crate::ui::theme::BG_BASE;
 use crate::viewport::Viewport;
@@ -58,8 +58,6 @@ pub struct DocLensApp {
     pub command_palette: CommandPalette,
 
     // UI State
-    pub sidebar_visible: bool,
-    pub tool_palette_visible: bool,
     pub current_tool: Option<AnnotationType>,
     pub current_color: egui::Color32,
 
@@ -71,10 +69,8 @@ pub struct DocLensApp {
 
     // UI Components (private — only accessed through update())
     toolbar: Toolbar,
-    sidebar: Sidebar,
     viewer: PdfViewer,
     statusbar: StatusBar,
-    tool_palette: ToolPalette,
     activity_bar: ActivityBar,
 }
 
@@ -86,8 +82,6 @@ impl DocLensApp {
         // Apply custom theme
         crate::ui::theme::apply(&cc.egui_ctx);
 
-        let sidebar_visible = settings.sidebar_visible;
-        let tool_palette_visible = settings.tool_palette_visible;
         let zoom_level = settings.last_zoom.unwrap_or(100.0);
         
         // Initialize performance systems
@@ -119,17 +113,13 @@ impl DocLensApp {
             workspace: WorkspaceState::default(),
             command_dispatcher: CommandDispatcher::default(),
             command_palette: CommandPalette::default(),
-            sidebar_visible,
-            tool_palette_visible,
             current_tool: None,
             current_color: egui::Color32::from_rgba_unmultiplied(255, 220, 0, 130),
             status_message: None,
             selected_text: None,
             toolbar: Toolbar::new(),
-            sidebar: Sidebar::new(),
             viewer: PdfViewer::new(),
             statusbar: StatusBar::new(),
-            tool_palette: ToolPalette::new(),
             activity_bar: ActivityBar::new(),
         };
 
@@ -478,8 +468,6 @@ impl DocLensApp {
         self.settings.last_file = self.doc_path.clone();
         self.settings.last_page = Some(self.current_page);
         self.settings.last_zoom = Some(self.zoom_level);
-        self.settings.sidebar_visible = self.sidebar_visible;
-        self.settings.tool_palette_visible = self.tool_palette_visible;
         let _ = self.settings.save();
     }
     

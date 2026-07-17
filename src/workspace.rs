@@ -39,17 +39,18 @@ impl PanelId {
     }
     
     pub fn icon(&self) -> &'static str {
+        use crate::ui::icons;
         match self {
-            Self::Thumbnails => "🖼",
-            Self::Outline => "📋",
-            Self::Search => "🔍",
-            Self::Bookmarks => "🔖",
-            Self::Annotations => "✏",
-            Self::Attachments => "📎",
-            Self::Properties => "⚙",
-            Self::PageInfo => "📄",
-            Self::Metadata => "ℹ",
-            Self::AnnotationInspector => "🔎",
+            Self::Thumbnails         => icons::ICON_THUMBNAILS,
+            Self::Outline            => icons::ICON_OUTLINE,
+            Self::Search             => icons::ICON_SEARCH,
+            Self::Bookmarks          => icons::ICON_BOOKMARKS,
+            Self::Annotations        => icons::ICON_ANNOTATIONS,
+            Self::Attachments        => icons::ICON_ATTACHMENTS,
+            Self::Properties         => icons::ICON_PROPERTIES,
+            Self::PageInfo           => icons::ICON_PAGE_INFO,
+            Self::Metadata           => icons::ICON_METADATA,
+            Self::AnnotationInspector => icons::ICON_ANNOTATION_INSPECT,
         }
     }
     

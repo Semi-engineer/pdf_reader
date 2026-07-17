@@ -1,80 +1,84 @@
 /*!
-DocLens Theme
-Centralised colour palette and style setup.
+DocLens Design System
+Centralised theme tokens, typography, spacing, radii, and style setup.
+
+Design Philosophy:
+  • Industrial Minimal aesthetic
+  • High information density
+  • Flat surfaces with thin borders
+  • Neutral gray palette with blue/orange accents
+  • No gradients, no glassmorphism
+  • Consistent spacing on an 8-point grid
 */
 
 use eframe::egui::{self, Color32, FontId, Stroke, Vec2, Visuals};
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// THEME SYSTEM — Industrial Minimal Design Language
-// ═══════════════════════════════════════════════════════════════════════════════
-//
-// Design Philosophy:
-//   • Industrial Minimal aesthetic
-//   • High information density
-//   • Flat surfaces with thin borders
-//   • Neutral gray palette with blue/orange accents
-//   • No gradients, no glassmorphism
-//   • Minimal corner radius (2-4px)
-//
+// SEMANTIC COLOR TOKENS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── Background Semantic Tokens ──────────────────────────────────────────────
+// ─── Background Tokens ───────────────────────────────────────────────────────
 
-/// Base canvas — deepest background (window, central workspace)
-pub const BG_BASE: Color32        = Color32::from_rgb(24,  24,  28);   
+/// Base canvas — deepest background (window chrome, title bar)
+pub const BG_BASE: Color32        = Color32::from_rgb(24,  24,  28);
+
+/// Workspace canvas — slightly warmer than base, for document viewing area
+pub const BG_WORKSPACE: Color32   = Color32::from_rgb(28,  28,  32);
 
 /// Surface elevation — panels, sidebars, activity bar
-pub const BG_SURFACE: Color32     = Color32::from_rgb(32,  32,  38);   
+pub const BG_SURFACE: Color32     = Color32::from_rgb(32,  32,  38);
 
 /// Elevated controls — buttons, inputs, cards
-pub const BG_ELEVATED: Color32    = Color32::from_rgb(42,  42,  50);   
+pub const BG_ELEVATED: Color32    = Color32::from_rgb(42,  42,  50);
 
 /// Hover state — interactive element hover
-pub const BG_HOVER: Color32       = Color32::from_rgb(52,  52,  62);   
+pub const BG_HOVER: Color32       = Color32::from_rgb(52,  52,  62);
 
 /// Active/Selected — primary accent blue
-pub const BG_ACTIVE: Color32      = Color32::from_rgb(60, 120, 216);   
+pub const BG_ACTIVE: Color32      = Color32::from_rgb(60, 120, 216);
 
 /// Active dim — semi-transparent active background
 pub static BG_ACTIVE_DIM: std::sync::LazyLock<Color32> =
     std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(60, 120, 216, 40));
 
-// ─── Foreground Semantic Tokens ──────────────────────────────────────────────
+// ─── Foreground Tokens ───────────────────────────────────────────────────────
 
 /// Primary text — high contrast, main content
-pub const FG_PRIMARY: Color32     = Color32::from_rgb(235, 235, 242);  
+pub const FG_PRIMARY: Color32     = Color32::from_rgb(235, 235, 242);
 
 /// Secondary text — lower contrast, supporting content
-pub const FG_SECONDARY: Color32   = Color32::from_rgb(160, 165, 180);  
+pub const FG_SECONDARY: Color32   = Color32::from_rgb(160, 165, 180);
 
 /// Tertiary text — lowest contrast, hints and placeholders
-pub const FG_TERTIARY: Color32    = Color32::from_rgb(120, 125, 140);  
+pub const FG_TERTIARY: Color32    = Color32::from_rgb(120, 125, 140);
+
+/// Disabled text — non-interactive elements
+pub const FG_DISABLED: Color32    = Color32::from_rgb(80,  84,  96);
 
 /// Accent — interactive elements, links, highlights
-pub const FG_ACCENT: Color32      = Color32::from_rgb(80, 150, 255);   
+pub const FG_ACCENT: Color32      = Color32::from_rgb(80, 150, 255);
 
 /// Success — positive states, confirmations
-pub const FG_SUCCESS: Color32     = Color32::from_rgb(80, 200, 120);   
+pub const FG_SUCCESS: Color32     = Color32::from_rgb(80, 200, 120);
 
 /// Warning — caution, pending actions (orange)
-pub const FG_WARNING: Color32     = Color32::from_rgb(255, 170,  60);  
+pub const FG_WARNING: Color32     = Color32::from_rgb(255, 170,  60);
 
 /// Error — destructive actions, errors
-pub const FG_ERROR: Color32       = Color32::from_rgb(255,  90,  90);  
+pub const FG_ERROR: Color32       = Color32::from_rgb(255,  90,  90);
 
-// ─── Border Semantic Tokens ──────────────────────────────────────────────────
+// ─── Border Tokens ───────────────────────────────────────────────────────────
 
 /// Default border — panel separators, subtle divisions
-pub const BORDER: Color32         = Color32::from_rgb(48,  48,  58);   
+pub const BORDER: Color32         = Color32::from_rgb(48,  48,  58);
 
 /// Focus border — active input focus ring
-pub const BORDER_FOCUS: Color32   = Color32::from_rgb(80, 150, 255);   
+pub const BORDER_FOCUS: Color32   = Color32::from_rgb(80, 150, 255);
 
 /// Strong border — emphasized separations
 pub const BORDER_STRONG: Color32  = Color32::from_rgb(64,  64,  74);
 
-// ─── Specialized Semantic Tokens ─────────────────────────────────────────────
+// ─── Specialized Tokens ──────────────────────────────────────────────────────
 
 /// Selection background — text/element selection
 pub static SELECTION_BG: std::sync::LazyLock<Color32> =
@@ -88,7 +92,56 @@ pub static SEARCH_BG: std::sync::LazyLock<Color32> =
 pub static SEARCH_CURRENT: std::sync::LazyLock<Color32> =
     std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(255, 150, 30, 220));
 
-// ─── Layout Constants ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPACING SYSTEM — 8-point grid
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// 4px — tightest spacing (inline gaps, icon padding)
+pub const SP_XS: f32  = 4.0;
+/// 8px — default small spacing (between related items)
+pub const SP_SM: f32  = 8.0;
+/// 12px — medium spacing (between groups)
+pub const SP_MD: f32  = 12.0;
+/// 16px — large spacing (section padding)
+pub const SP_LG: f32  = 16.0;
+/// 24px — extra large spacing (major separations)
+pub const SP_XL: f32  = 24.0;
+/// 32px — maximum spacing (top-level sections)
+pub const SP_XXL: f32 = 32.0;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORNER RADIUS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Small radius — buttons, inputs, tags
+pub const RADIUS_SM: f32 = 4.0;
+/// Medium radius — cards, panels, dropdowns
+pub const RADIUS_MD: f32 = 6.0;
+/// Large radius — modals, dialogs
+pub const RADIUS_LG: f32 = 8.0;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TYPOGRAPHY SCALE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Heading — page titles, modal headers (16px)
+pub const FONT_SIZE_HEADING: f32 = 16.0;
+/// Section — panel titles, group labels (14px)
+pub const FONT_SIZE_SECTION: f32 = 14.0;
+/// Body / UI — primary content, menus, buttons (13px)
+pub const FONT_SIZE_BODY: f32    = 13.0;
+/// Caption — status bar, metadata, tooltips (12px)
+pub const FONT_SIZE_CAPTION: f32 = 12.0;
+/// Tiny — annotations hints, badges (11px)
+pub const FONT_SIZE_TINY: f32    = 11.0;
+
+// Aliases for backward compatibility
+pub const FONT_SIZE_UI: f32    = FONT_SIZE_BODY;
+pub const FONT_SIZE_SMALL: f32 = FONT_SIZE_CAPTION;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAYOUT CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Activity bar width (vertical left ribbon)
 pub const ACTIVITY_BAR_WIDTH: f32 = 48.0;
@@ -111,22 +164,30 @@ pub const SIDEBAR_DEFAULT_WIDTH: f32 = 260.0;
 /// Inspector panel default width
 pub const INSPECTOR_DEFAULT_WIDTH: f32 = 280.0;
 
-// ─── Typography Scale ─────────────────────────────────────────────────────────
+/// Icon button size (square)
+pub const ICON_BTN_SIZE: f32 = 28.0;
 
-/// UI font size — menus, toolbars, panels
-pub const FONT_SIZE_UI: f32 = 13.0;
+/// Activity bar button size (square)
+pub const ACTIVITY_BTN_SIZE: f32 = 40.0;
 
-/// Body font size — primary content
-pub const FONT_SIZE_BODY: f32 = 13.5;
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAGE PRESENTATION
+// ═══════════════════════════════════════════════════════════════════════════════
 
-/// Small font size — status bar, metadata
-pub const FONT_SIZE_SMALL: f32 = 12.0;
+/// Subtle drop shadow for rendered PDF pages
+pub fn page_shadow() -> egui::epaint::Shadow {
+    egui::epaint::Shadow {
+        offset: [0, 2],
+        blur: 8,
+        spread: 0,
+        color: Color32::from_black_alpha(50),
+    }
+}
 
-/// Tiny font size — annotations, hints
-pub const FONT_SIZE_TINY: f32 = 11.0;
-
-/// Heading font size
-pub const FONT_SIZE_HEADING: f32 = 14.5;
+/// Border stroke around rendered PDF pages
+pub fn page_border() -> Stroke {
+    Stroke::new(1.0, Color32::from_black_alpha(40))
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // APPLY THEME
@@ -138,8 +199,8 @@ pub fn apply(ctx: &egui::Context) {
     // ── Window ────────────────────────────────────────────────────────────────
     visuals.window_fill = BG_BASE;
     visuals.window_stroke = Stroke::new(1.0, BORDER);
-    visuals.window_corner_radius = egui::CornerRadius::same(4);
-    visuals.window_shadow = egui::epaint::Shadow::NONE; // Flat, no shadows
+    visuals.window_corner_radius = egui::CornerRadius::same(RADIUS_SM as u8);
+    visuals.window_shadow = egui::epaint::Shadow::NONE; // Flat, no window shadows
 
     // ── Panel ─────────────────────────────────────────────────────────────────
     visuals.panel_fill = BG_SURFACE;
@@ -149,35 +210,35 @@ pub fn apply(ctx: &egui::Context) {
     visuals.faint_bg_color = BG_BASE;
 
     // ── Widgets — Industrial Minimal Style ────────────────────────────────────
-    
+
     // Noninteractive (static elements)
     visuals.widgets.noninteractive.bg_fill    = BG_ELEVATED;
     visuals.widgets.noninteractive.bg_stroke  = Stroke::new(1.0, BORDER);
     visuals.widgets.noninteractive.fg_stroke  = Stroke::new(1.0, FG_SECONDARY);
-    visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(2);
+    visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(RADIUS_SM as u8);
 
     // Inactive (default clickable state)
     visuals.widgets.inactive.bg_fill    = BG_ELEVATED;
     visuals.widgets.inactive.bg_stroke  = Stroke::new(1.0, BORDER);
     visuals.widgets.inactive.fg_stroke  = Stroke::new(1.0, FG_PRIMARY);
-    visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(2);
+    visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(RADIUS_SM as u8);
 
     // Hovered
     visuals.widgets.hovered.bg_fill    = BG_HOVER;
     visuals.widgets.hovered.bg_stroke  = Stroke::new(1.0, BORDER_FOCUS);
     visuals.widgets.hovered.fg_stroke  = Stroke::new(1.0, FG_PRIMARY);
-    visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(2);
+    visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(RADIUS_SM as u8);
 
     // Active (pressed/selected)
     visuals.widgets.active.bg_fill    = BG_ACTIVE;
     visuals.widgets.active.bg_stroke  = Stroke::NONE;
     visuals.widgets.active.fg_stroke  = Stroke::new(1.0, Color32::WHITE);
-    visuals.widgets.active.corner_radius = egui::CornerRadius::same(2);
+    visuals.widgets.active.corner_radius = egui::CornerRadius::same(RADIUS_SM as u8);
 
     // Open (dropdown/combo open)
     visuals.widgets.open.bg_fill    = BG_ACTIVE;
     visuals.widgets.open.bg_stroke  = Stroke::NONE;
-    visuals.widgets.open.corner_radius = egui::CornerRadius::same(2);
+    visuals.widgets.open.corner_radius = egui::CornerRadius::same(RADIUS_SM as u8);
 
     // ── Selection ─────────────────────────────────────────────────────────────
     visuals.selection.bg_fill = BG_ACTIVE;
@@ -193,14 +254,14 @@ pub fn apply(ctx: &egui::Context) {
 
     // ── Spacing & Sizing ──────────────────────────────────────────────────────
     let mut style = (*ctx.style()).clone();
-    
-    // Compact industrial spacing
-    style.spacing.item_spacing   = Vec2::new(6.0, 4.0);
-    style.spacing.button_padding = Vec2::new(8.0, 4.0);
-    style.spacing.window_margin  = egui::Margin::same(8);
-    style.spacing.menu_margin    = egui::Margin::same(4);
-    style.spacing.indent         = 16.0;
-    style.spacing.interact_size  = Vec2::new(32.0, 22.0);
+
+    // Compact industrial spacing (8-point based)
+    style.spacing.item_spacing   = Vec2::new(SP_SM, SP_XS);
+    style.spacing.button_padding = Vec2::new(SP_SM, SP_XS);
+    style.spacing.window_margin  = egui::Margin::same(SP_SM as i8);
+    style.spacing.menu_margin    = egui::Margin::same(SP_XS as i8);
+    style.spacing.indent         = SP_LG;
+    style.spacing.interact_size  = Vec2::new(SP_XXL, 22.0);
     style.spacing.slider_width   = 160.0;
 
     // ── Font System ───────────────────────────────────────────────────────────
@@ -208,24 +269,24 @@ pub fn apply(ctx: &egui::Context) {
 
     // Typography scale
     style.text_styles.insert(
+        egui::TextStyle::Heading,
+        FontId::new(FONT_SIZE_HEADING, egui::FontFamily::Proportional),
+    );
+    style.text_styles.insert(
         egui::TextStyle::Body,
         FontId::new(FONT_SIZE_BODY, egui::FontFamily::Proportional),
     );
     style.text_styles.insert(
         egui::TextStyle::Button,
-        FontId::new(FONT_SIZE_UI, egui::FontFamily::Proportional),
-    );
-    style.text_styles.insert(
-        egui::TextStyle::Heading,
-        FontId::new(FONT_SIZE_HEADING, egui::FontFamily::Proportional),
+        FontId::new(FONT_SIZE_BODY, egui::FontFamily::Proportional),
     );
     style.text_styles.insert(
         egui::TextStyle::Small,
-        FontId::new(FONT_SIZE_SMALL, egui::FontFamily::Proportional),
+        FontId::new(FONT_SIZE_CAPTION, egui::FontFamily::Proportional),
     );
     style.text_styles.insert(
         egui::TextStyle::Monospace,
-        FontId::new(FONT_SIZE_SMALL, egui::FontFamily::Monospace),
+        FontId::new(FONT_SIZE_CAPTION, egui::FontFamily::Monospace),
     );
 
     ctx.set_style(style);
@@ -292,12 +353,14 @@ fn setup_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
-// ─── Helper: icon button ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER WIDGETS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /// A compact square button with no border when inactive.
 pub fn icon_btn(ui: &mut egui::Ui, icon: &str, tooltip: &str) -> egui::Response {
-    let btn = egui::Button::new(egui::RichText::new(icon).size(14.0))
-        .min_size(Vec2::splat(28.0))
+    let btn = egui::Button::new(egui::RichText::new(icon).size(FONT_SIZE_SECTION))
+        .min_size(Vec2::splat(ICON_BTN_SIZE))
         .frame(true);
     ui.add(btn).on_hover_text(tooltip)
 }
@@ -310,95 +373,13 @@ pub fn icon_toggle_btn(
     active: bool,
 ) -> egui::Response {
     let text = if active {
-        egui::RichText::new(icon).size(14.0).color(Color32::WHITE)
+        egui::RichText::new(icon).size(FONT_SIZE_SECTION).color(Color32::WHITE)
     } else {
-        egui::RichText::new(icon).size(14.0).color(FG_SECONDARY)
+        egui::RichText::new(icon).size(FONT_SIZE_SECTION).color(FG_SECONDARY)
     };
     let btn = egui::Button::new(text)
-        .min_size(Vec2::splat(28.0))
+        .min_size(Vec2::splat(ICON_BTN_SIZE))
         .fill(if active { BG_ACTIVE } else { Color32::TRANSPARENT })
         .frame(true);
     ui.add(btn).on_hover_text(tooltip)
-}
-
-// ─── SVG-style Icon Drawing Functions ─────────────────────────────────────────
-
-/// Draw a document/file icon
-pub fn draw_document_icon(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
-    let painter = ui.painter();
-    let padding = rect.width() * 0.15;
-    let icon_rect = rect.shrink(padding);
-    
-    // Document body with folded corner
-    let fold_size = rect.width() * 0.2;
-    let points = vec![
-        icon_rect.left_top(),
-        egui::pos2(icon_rect.right() - fold_size, icon_rect.top()),
-        icon_rect.right_top() + egui::vec2(0.0, fold_size),
-        icon_rect.right_bottom(),
-        icon_rect.left_bottom(),
-    ];
-    
-    painter.add(egui::Shape::convex_polygon(
-        points,
-        color,
-        egui::Stroke::new(1.0, color.gamma_multiply(0.7)),
-    ));
-    
-    // Folded corner
-    let fold_points = vec![
-        egui::pos2(icon_rect.right() - fold_size, icon_rect.top()),
-        egui::pos2(icon_rect.right() - fold_size, icon_rect.top() + fold_size),
-        icon_rect.right_top() + egui::vec2(0.0, fold_size),
-    ];
-    painter.add(egui::Shape::convex_polygon(
-        fold_points,
-        color.gamma_multiply(0.6),
-        egui::Stroke::NONE,
-    ));
-}
-
-/// Draw a search/magnifying glass icon
-pub fn draw_search_icon(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
-    let painter = ui.painter();
-    let center = rect.center() - egui::vec2(rect.width() * 0.1, rect.height() * 0.1);
-    let radius = rect.width() * 0.28;
-    
-    // Circle
-    painter.circle_stroke(center, radius, egui::Stroke::new(1.8, color));
-    
-    // Handle
-    let handle_start = center + egui::vec2(radius * 0.7, radius * 0.7);
-    let handle_end = handle_start + egui::vec2(radius * 0.6, radius * 0.6);
-    painter.line_segment([handle_start, handle_end], egui::Stroke::new(1.8, color));
-}
-
-/// Draw a folder icon
-pub fn draw_folder_icon(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
-    let painter = ui.painter();
-    let padding = rect.width() * 0.15;
-    let icon_rect = rect.shrink(padding);
-    
-    let tab_width = icon_rect.width() * 0.35;
-    let tab_height = icon_rect.height() * 0.2;
-    
-    // Folder body
-    painter.rect_filled(
-        egui::Rect::from_min_max(
-            icon_rect.left_top() + egui::vec2(0.0, tab_height),
-            icon_rect.right_bottom(),
-        ),
-        2.0,
-        color,
-    );
-    
-    // Folder tab
-    painter.rect_filled(
-        egui::Rect::from_min_size(
-            icon_rect.left_top(),
-            egui::vec2(tab_width, tab_height),
-        ),
-        2.0,
-        color.gamma_multiply(0.8),
-    );
 }
