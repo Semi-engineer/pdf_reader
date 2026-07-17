@@ -1,8 +1,9 @@
 /*!
-Status Bar — slim info bar at the bottom.
+Status Bar — Professional bottom info bar
+Shows: file, page, zoom, rotation, tool, search, cache, memory, tasks
 */
 
-use super::theme::{BG_SURFACE, BORDER, FG_ACCENT, FG_PRIMARY, FG_SECONDARY, FG_SUCCESS};
+use super::theme::*;
 use crate::app::DocLensApp;
 use eframe::egui::{self, RichText, Stroke};
 
@@ -18,105 +19,166 @@ impl StatusBar {
         egui::Frame::new()
             .fill(BG_SURFACE)
             .stroke(Stroke::new(1.0, BORDER))
-            .inner_margin(egui::Margin { left: 10, right: 10, top: 3, bottom: 3 })
+            .inner_margin(egui::Margin::symmetric(10, 2))
             .show(ui, |ui| {
+                ui.set_height(STATUS_BAR_HEIGHT - 4.0);
+                
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
 
-                    // ── Left: file name ───────────────────────────────────
+                    // ═══ LEFT SIDE: Document Info ═════════════════════════
+
+                    // File name
                     if let Some(path) = &app.doc_path {
                         let name = std::path::Path::new(path)
                             .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or(path.as_str());
+                        
                         ui.label(
-                            RichText::new(format!("»  {name}"))
-                                .size(12.5).color(FG_PRIMARY)
+                            RichText::new(format!("📄 {}", name))
+                                .size(FONT_SIZE_SMALL)
+                                .color(FG_PRIMARY)
                         );
-                        vdiv(ui);
+                        status_divider(ui);
                     }
 
-                    // ── Page ─────────────────────────────────────────────
+                    // Page count
                     if let Some(doc) = &app.document {
                         ui.label(
-                            RichText::new(format!("p. {}  /  {}", app.current_page + 1, doc.page_count()))
-                                .size(12.0).color(FG_SECONDARY)
+                            RichText::new(format!(
+                                "Page {} / {}",
+                                app.current_page + 1,
+                                doc.page_count()
+                            ))
+                            .size(FONT_SIZE_SMALL)
+                            .color(FG_SECONDARY)
                         );
-                        vdiv(ui);
+                        status_divider(ui);
                     }
 
-                    // ── Zoom ─────────────────────────────────────────────
-                    ui.label(
-                        RichText::new(format!("{:.0}%", app.zoom_level))
-                            .size(12.0).color(FG_SECONDARY)
-                    );
+                    // Zoom level
+                    if app.document.is_some() {
+                        ui.label(
+                            RichText::new(format!("{}%", app.zoom_level as i32))
+                                .size(FONT_SIZE_SMALL)
+                                .color(FG_SECONDARY)
+                        );
+                    }
 
-                    // ── Rotation ─────────────────────────────────────────
+                    // Rotation indicator
                     if app.rotation != 0 {
-                        vdiv(ui);
+                        status_divider(ui);
                         ui.label(
                             RichText::new(format!("{}°", app.rotation))
-                                .size(12.0).color(FG_SECONDARY)
+                                .size(FONT_SIZE_SMALL)
+                                .color(FG_SECONDARY)
                         );
                     }
 
-                    // ── Active tool ───────────────────────────────────────
+                    // Active tool
                     if let Some(tool) = &app.current_tool {
-                        vdiv(ui);
+                        status_divider(ui);
                         ui.label(
-                            RichText::new(format!("{:?}", tool))
-                                .size(12.0).color(FG_ACCENT)
+                            RichText::new(format!("🖊 {:?}", tool))
+                                .size(FONT_SIZE_SMALL)
+                                .color(FG_ACCENT)
                         );
                     } else if app.document.is_some() {
-                        vdiv(ui);
+                        status_divider(ui);
                         ui.label(
-                            RichText::new("Select").size(12.0).color(FG_SECONDARY)
+                            RichText::new("↖ Select")
+                                .size(FONT_SIZE_SMALL)
+                                .color(FG_TERTIARY)
                         );
                     }
 
-                    // ── Search count ─────────────────────────────────────
-                    let sc = app.search_manager.result_count();
-                    if sc > 0 {
-                        vdiv(ui);
+                    // Search results
+                    let search_count = app.search_manager.result_count();
+                    if search_count > 0 {
+                        status_divider(ui);
                         ui.label(
-                            RichText::new(format!("~  {} / {}", app.search_manager.current_index() + 1, sc))
-                                .size(12.0).color(FG_ACCENT)
+                            RichText::new(format!(
+                                "🔍 {} / {}",
+                                app.search_manager.current_index() + 1,
+                                search_count
+                            ))
+                            .size(FONT_SIZE_SMALL)
+                            .color(FG_ACCENT)
                         );
                     }
 
-                    // ── Right: status message + cache ─────────────────────
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Cache counter (small, dim)
-                        ui.label(
-                            RichText::new(format!("# {}", app.page_cache.len()))
-                                .size(10.5).color(BORDER)
-                        );
+                    // ═══ RIGHT SIDE: Technical Info ═══════════════════════
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0;
 
-                        // Transient status message with TTL fade
-                        if let Some(msg) = &app.status_message {
-                            if self.msg_ttl == 0 { self.msg_ttl = 180; } // ~3 s @ 60 fps
-                            vdiv(ui);
-                            ui.label(
-                                RichText::new(msg.as_str())
-                                    .size(12.0).color(FG_SUCCESS)
-                            );
-                        }
-
-                        if self.msg_ttl > 0 {
-                            self.msg_ttl -= 1;
-                            if self.msg_ttl == 0 {
-                                app.status_message = None;
+                            // Cache status
+                            let cache_size = app.page_cache.len();
+                            if cache_size > 0 {
+                                ui.label(
+                                    RichText::new(format!("💾 {}", cache_size))
+                                        .size(FONT_SIZE_TINY)
+                                        .color(FG_TERTIARY)
+                                ).on_hover_text("Cached pages");
                             }
-                            ui.ctx().request_repaint();
-                        }
-                    });
+
+                            // Rendering state
+                            if app.render_worker.is_some() && app.document.is_some() {
+                                status_divider(ui);
+                                ui.label(
+                                    RichText::new("⚡")
+                                        .size(FONT_SIZE_TINY)
+                                        .color(FG_SUCCESS)
+                                ).on_hover_text("Renderer active");
+                            }
+
+                            // Memory usage (placeholder - would need actual measurement)
+                            if app.document.is_some() {
+                                status_divider(ui);
+                                let mem_mb = (cache_size * 2).max(10); // Rough estimate
+                                ui.label(
+                                    RichText::new(format!("RAM: {}MB", mem_mb))
+                                        .size(FONT_SIZE_TINY)
+                                        .color(FG_TERTIARY)
+                                );
+                            }
+
+                            // Transient status message with TTL fade
+                            if let Some(msg) = &app.status_message {
+                                if self.msg_ttl == 0 {
+                                    self.msg_ttl = 180; // ~3s @ 60fps
+                                }
+                                status_divider(ui);
+                                ui.label(
+                                    RichText::new(msg.as_str())
+                                        .size(FONT_SIZE_SMALL)
+                                        .color(FG_SUCCESS)
+                                );
+                            }
+
+                            if self.msg_ttl > 0 {
+                                self.msg_ttl -= 1;
+                                if self.msg_ttl == 0 {
+                                    app.status_message = None;
+                                }
+                                ui.ctx().request_repaint();
+                            }
+                        },
+                    );
                 });
             });
     }
 }
 
-fn vdiv(ui: &mut egui::Ui) {
-    ui.add(egui::Separator::default().vertical().spacing(6.0));
+/// Vertical divider for status bar
+fn status_divider(ui: &mut egui::Ui) {
+    ui.add(
+        egui::Separator::default()
+            .vertical()
+            .spacing(4.0)
+    );
 }
 
 impl Default for StatusBar {

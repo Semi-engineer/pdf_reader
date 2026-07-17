@@ -1,6 +1,6 @@
 /*!
 Thumbnail Manager
-Generates page thumbnails asynchronously in a background thread.
+Generates page thumbnails asynchronously with virtualization support
 */
 
 use crate::pdf_document::PdfDocument;
@@ -26,10 +26,19 @@ pub struct ThumbnailManager {
     ready_tx: Option<std::sync::mpsc::SyncSender<ThumbReady>>,
     /// Shared flag: background thread posts here to wake up egui.
     repaint_tx: Option<Arc<Mutex<Option<egui::Context>>>>,
+    /// Maximum number of thumbnails to cache
+    max_capacity: usize,
+    /// Current visible range (for virtualization)
+    visible_start: usize,
+    visible_end: usize,
 }
 
 impl ThumbnailManager {
     pub fn new() -> Self {
+        Self::new_with_capacity(100)
+    }
+    
+    pub fn new_with_capacity(capacity: usize) -> Self {
         let (tx, rx) = std::sync::mpsc::sync_channel::<ThumbReady>(64);
         Self {
             thumbnails: HashMap::new(),
@@ -37,6 +46,9 @@ impl ThumbnailManager {
             ready_rx: Some(rx),
             ready_tx: Some(tx),
             repaint_tx: Some(Arc::new(Mutex::new(None))),
+            max_capacity: capacity,
+            visible_start: 0,
+            visible_end: 0,
         }
     }
 
@@ -114,6 +126,21 @@ impl ThumbnailManager {
             }
         });
     }
+    
+    /// Update visible range for thumbnail virtualization
+    pub fn set_visible_range(&mut self, start: usize, end: usize) {
+        self.visible_start = start;
+        self.visible_end = end;
+        
+        // Evict thumbnails outside the visible range + margin
+        let margin = 20;
+        let evict_start = start.saturating_sub(margin);
+        let evict_end = end + margin;
+        
+        self.thumbnails.retain(|&page, _| {
+            page >= evict_start && page < evict_end
+        });
+    }
 
     /// Poll the channel for completed thumbnails.  Call once per frame from
     /// `process_render_responses`.
@@ -128,9 +155,26 @@ impl ThumbnailManager {
         }
 
         if let Some(rx) = &self.ready_rx {
+            let mut count = 0;
             while let Ok(ready) = rx.try_recv() {
                 self.thumbnails.insert(ready.page, ready.image);
                 self.requested.insert(ready.page);
+                
+                // Enforce capacity limit using LRU-like behavior
+                if self.thumbnails.len() > self.max_capacity {
+                    // Remove thumbnails farthest from visible range
+                    if let Some(&page_to_remove) = self.thumbnails.keys()
+                        .filter(|&&p| p < self.visible_start || p >= self.visible_end)
+                        .next()
+                    {
+                        self.thumbnails.remove(&page_to_remove);
+                    }
+                }
+                
+                count += 1;
+                if count >= 10 {
+                    break; // Limit processing per frame
+                }
             }
         }
     }
@@ -149,6 +193,14 @@ impl ThumbnailManager {
         self.ready_rx = Some(rx);
         self.ready_tx = Some(tx);
         self.repaint_tx = Some(Arc::new(Mutex::new(None)));
+    }
+    
+    /// Get current memory usage estimate (MB)
+    pub fn memory_usage_mb(&self) -> f32 {
+        let bytes: usize = self.thumbnails.values()
+            .map(|img| img.width() * img.height() * 4)
+            .sum();
+        bytes as f32 / (1024.0 * 1024.0)
     }
 }
 

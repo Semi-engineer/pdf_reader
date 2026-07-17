@@ -1,8 +1,9 @@
 /*!
-Toolbar — compact icon-first design.
+Toolbar — Modern, compact, icon-first top bar
+Reorganized into logical groups: File | Navigation | View | Search | Annotation
 */
 
-use super::theme::{self, BG_ELEVATED, BORDER, FG_ACCENT, FG_SECONDARY};
+use super::theme::*;
 use crate::app::DocLensApp;
 use eframe::egui::{self, Color32, RichText, Stroke, Vec2};
 
@@ -28,106 +29,131 @@ impl Toolbar {
             if i.consume_key(Modifiers::CTRL, Key::Equals) { app.zoom_in(); }
             if i.consume_key(Modifiers::CTRL, Key::Minus)  { app.zoom_out(); }
             if i.consume_key(Modifiers::CTRL, Key::Num0)   { app.set_zoom(100.0); }
-            // Ctrl+F → focus search
             if i.consume_key(Modifiers::CTRL, Key::F) { self.search_focused = true; }
         });
 
         let has_doc = app.document.is_some();
 
-        // Toolbar frame
+        // ══════════════════════════════════════════════════════════════════
+        // TOOLBAR STRUCTURE (Industrial Minimal)
+        // ══════════════════════════════════════════════════════════════════
+        // File | Navigation | View | Search                      | Inspector
+        // ══════════════════════════════════════════════════════════════════
+
         egui::Frame::new()
-            .fill(super::theme::BG_SURFACE)
-            .inner_margin(egui::Margin { left: 8, right: 8, top: 5, bottom: 5 })
+            .fill(BG_SURFACE)
+            .inner_margin(egui::Margin::symmetric(8, 4))
             .stroke(Stroke::new(1.0, BORDER))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 3.0;
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    ui.set_height(TOOLBAR_HEIGHT - 8.0);
 
-                    // ── Open ──────────────────────────────────────────────
-                    let open_r = ui.add(
-                        egui::Button::new(
-                            RichText::new("📁").size(14.0)  // Modern folder icon
-                        )
-                        .min_size(Vec2::new(32.0, 28.0))
-                        .fill(BG_ELEVATED)
-                    ).on_hover_text("Open PDF  (Ctrl+O)");
-                    if open_r.clicked() { open_file_dialog(app); }
-
-                    divider(ui);
-
-                    // ── Navigation ────────────────────────────────────────
+                    // ═══ FILE GROUP ═══════════════════════════════════════
+                    if icon_btn(ui, "📂", "Open  (Ctrl+O)", false).clicked() {
+                        open_file_dialog(app);
+                    }
+                    
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if theme::icon_btn(ui, "◀", "Previous page  (←)").clicked() {
+                        if icon_btn(ui, "💾", "Save", false).clicked() {
+                            app.status_message = Some("Save not yet implemented".into());
+                        }
+                        if icon_btn(ui, "🖨", "Print", false).clicked() {
+                            app.status_message = Some("Print not yet implemented".into());
+                        }
+                    });
+
+                    toolbar_divider(ui);
+
+                    // ═══ NAVIGATION GROUP ═════════════════════════════════
+                    ui.add_enabled_ui(has_doc, |ui| {
+                        if icon_btn(ui, "◀", "Previous  (←)", false).clicked() {
                             app.prev_page();
                         }
 
+                        // Page number input
                         let page_count = app.document.as_ref().map_or(1, |d| d.page_count());
                         let mut page = app.current_page + 1;
+                        
+                        ui.add_space(2.0);
                         let dv = egui::DragValue::new(&mut page)
                             .range(1..=page_count)
                             .speed(1.0)
                             .max_decimals(0);
-                        if ui.add_sized([38.0, 24.0], dv).changed() {
+                        if ui.add_sized([40.0, 22.0], dv).changed() {
                             app.goto_page(page.saturating_sub(1));
                         }
+                        
                         ui.label(
-                            RichText::new(format!("/ {page_count}"))
-                                .color(FG_SECONDARY).size(12.5)
+                            RichText::new(format!("/ {}", page_count))
+                                .color(FG_TERTIARY)
+                                .size(FONT_SIZE_SMALL)
                         );
+                        ui.add_space(2.0);
 
-                        if theme::icon_btn(ui, "▶", "Next page  (→)").clicked() {
+                        if icon_btn(ui, "▶", "Next  (→)", false).clicked() {
                             app.next_page();
                         }
                     });
 
-                    divider(ui);
+                    toolbar_divider(ui);
 
-                    // ── Zoom ──────────────────────────────────────────────
+                    // ═══ VIEW GROUP ═══════════════════════════════════════
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if theme::icon_btn(ui, "🔍−", "Zoom out  (Ctrl+−)").clicked() {
+                        if icon_btn(ui, "−", "Zoom out  (Ctrl+−)", false).clicked() {
                             app.zoom_out();
                         }
 
+                        // Zoom percentage
+                        ui.add_space(2.0);
                         let mut zoom = app.zoom_level;
                         let dv = egui::DragValue::new(&mut zoom)
                             .range(10.0..=500.0)
                             .speed(1.0)
                             .suffix("%")
                             .max_decimals(0);
-                        if ui.add_sized([52.0, 24.0], dv).changed() {
+                        if ui.add_sized([56.0, 22.0], dv).changed() {
                             app.set_zoom(zoom);
                         }
+                        ui.add_space(2.0);
 
-                        if theme::icon_btn(ui, "🔍+", "Zoom in  (Ctrl+=)").clicked() {
+                        if icon_btn(ui, "+", "Zoom in  (Ctrl++)", false).clicked() {
                             app.zoom_in();
                         }
 
-                        let r = ui.add(
-                            egui::Button::new(RichText::new("1∶1").size(11.5).color(FG_SECONDARY))
-                                .min_size(Vec2::new(30.0, 24.0))
-                                .fill(Color32::TRANSPARENT)
-                        ).on_hover_text("Reset zoom  (Ctrl+0)");
-                        if r.clicked() { app.set_zoom(100.0); }
+                        ui.add_space(4.0);
+                        
+                        if icon_btn(ui, "⊡", "Fit page", false).clicked() {
+                            app.status_message = Some("Fit page not yet implemented".into());
+                        }
+                        if icon_btn(ui, "⊟", "Fit width", false).clicked() {
+                            app.status_message = Some("Fit width not yet implemented".into());
+                        }
+
+                        toolbar_divider(ui);
+
+                        // Rotation
+                        if icon_btn(ui, "↺", "Rotate left", false).clicked() {
+                            app.rotate_left();
+                        }
+                        if icon_btn(ui, "↻", "Rotate right", false).clicked() {
+                            app.rotate_right();
+                        }
                     });
 
-                    divider(ui);
+                    toolbar_divider(ui);
 
-                    // ── Rotation ──────────────────────────────────────────
+                    // ═══ SEARCH GROUP ═════════════════════════════════════
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if theme::icon_btn(ui, "↺", "Rotate left").clicked()  { app.rotate_left(); }
-                        if theme::icon_btn(ui, "↻", "Rotate right").clicked() { app.rotate_right(); }
-                    });
-
-                    divider(ui);
-
-                    // ── Search ────────────────────────────────────────────
-                    ui.add_enabled_ui(has_doc, |ui| {
-                        // Text input with inner icon
+                        // Unified search field with icon
+                        ui.add_space(4.0);
+                        
                         let te = egui::TextEdit::singleline(&mut self.search_query)
-                            .desired_width(150.0)
-                            .hint_text("🔍 Search...")
-                            .font(egui::FontId::proportional(13.0));
-                        let te_r = ui.add_sized([150.0, 24.0], te);
+                            .hint_text("🔍 Search document...")
+                            .desired_width(200.0)
+                            .font(egui::FontId::proportional(FONT_SIZE_UI));
+                        
+                        let te_r = ui.add_sized([200.0, 22.0], te);
 
                         if self.search_focused {
                             te_r.request_focus();
@@ -137,48 +163,48 @@ impl Toolbar {
                         let enter = te_r.lost_focus()
                             && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
-                        let find_r = ui.add(
-                            egui::Button::new(RichText::new("Find").size(12.5))
-                                .min_size(Vec2::new(38.0, 24.0))
-                                .fill(BG_ELEVATED)
-                        );
-                        if find_r.clicked() || enter {
+                        if enter {
                             app.perform_search(self.search_query.trim().to_string());
                         }
 
+                        // Search navigation (only show when there are results)
                         let count = app.search_manager.result_count();
                         if count > 0 {
+                            ui.add_space(4.0);
                             let idx = app.search_manager.current_index() + 1;
                             ui.label(
-                                RichText::new(format!("{idx}/{count}"))
-                                    .color(FG_ACCENT).size(12.0)
+                                RichText::new(format!("{}/{}", idx, count))
+                                    .color(FG_ACCENT)
+                                    .size(FONT_SIZE_SMALL)
                             );
-                            if theme::icon_btn(ui, "⌃", "Previous result").clicked() {
-                                if let Some(r) = app.search_manager.prev_result() {
-                                    let p = r.page; app.goto_page(p);
+                            
+                            if icon_btn(ui, "▲", "Previous result", false).clicked() {
+                                let page = app.search_manager.prev_result().map(|r| r.page);
+                                if let Some(p) = page {
+                                    app.goto_page(p);
                                 }
                             }
-                            if theme::icon_btn(ui, "⌄", "Next result").clicked() {
-                                if let Some(r) = app.search_manager.next_result() {
-                                    let p = r.page; app.goto_page(p);
+                            if icon_btn(ui, "▼", "Next result", false).clicked() {
+                                let page = app.search_manager.next_result().map(|r| r.page);
+                                if let Some(p) = page {
+                                    app.goto_page(p);
                                 }
                             }
-                            if theme::icon_btn(ui, "×", "Clear search").clicked() {
+                            if icon_btn(ui, "✕", "Clear search", false).clicked() {
                                 self.search_query.clear();
                                 app.search_manager.clear();
                             }
                         }
                     });
 
-                    // ── Right-side toggles ────────────────────────────────
+                    // ═══ RIGHT SIDE: INSPECTOR TOGGLE ═════════════════════
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing.x = 3.0;
+                        ui.spacing_mut().item_spacing.x = 2.0;
 
-                        if theme::icon_toggle_btn(ui, "🎨", "Annotation tools", app.tool_palette_visible).clicked() {
-                            app.tool_palette_visible = !app.tool_palette_visible;
-                        }
-                        if theme::icon_toggle_btn(ui, "☰", "Page thumbnails", app.sidebar_visible).clicked() {
-                            app.sidebar_visible = !app.sidebar_visible;
+                        // Toggle inspector (right sidebar)
+                        let inspector_active = app.workspace.right_sidebar_visible;
+                        if icon_btn(ui, "ℹ", "Inspector", inspector_active).clicked() {
+                            app.workspace.toggle_right_sidebar();
                         }
                     });
                 });
@@ -186,19 +212,67 @@ impl Toolbar {
     }
 }
 
-fn divider(ui: &mut egui::Ui) {
-    ui.add_space(2.0);
-    ui.add(egui::Separator::default().vertical().spacing(6.0));
-    ui.add_space(2.0);
+// ══════════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Toolbar divider (thin vertical line)
+fn toolbar_divider(ui: &mut egui::Ui) {
+    ui.add_space(4.0);
+    ui.add(
+        egui::Separator::default()
+            .vertical()
+            .spacing(4.0)
+    );
+    ui.add_space(4.0);
 }
 
+/// Icon button for toolbar (square, 28x28)
+fn icon_btn(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool) -> egui::Response {
+    let size = Vec2::splat(28.0);
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+
+    let bg = if active {
+        BG_ACTIVE
+    } else if response.hovered() {
+        BG_HOVER
+    } else {
+        Color32::TRANSPARENT
+    };
+
+    let fg = if active {
+        Color32::WHITE
+    } else if response.hovered() {
+        FG_PRIMARY
+    } else {
+        FG_SECONDARY
+    };
+
+    // Background
+    if bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(rect, 2.0, bg);
+    }
+
+    // Icon
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::proportional(14.0),
+        fg,
+    );
+
+    response.on_hover_text(tooltip)
+}
+
+/// Open file dialog
 fn open_file_dialog(app: &mut DocLensApp) {
     if let Some(path) = rfd::FileDialog::new()
         .add_filter("PDF Files", &["pdf"])
         .pick_file()
     {
         if let Err(e) = app.open_file(&path.to_string_lossy()) {
-            app.status_message = Some(format!("Failed to open: {e}"));
+            app.status_message = Some(format!("Failed to open: {}", e));
         }
     }
 }

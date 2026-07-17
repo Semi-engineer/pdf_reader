@@ -11,10 +11,17 @@ mod config;
 mod pdf_document;
 mod page_cache;
 mod render_worker;
+mod render_scheduler;
 mod thumbnail_manager;
 mod annotation;
 mod search;
 mod ui;
+mod workspace;
+mod commands;
+mod performance_config;
+mod performance_metrics;
+mod viewport;
+mod texture_pool;
 
 use eframe::egui;
 

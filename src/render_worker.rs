@@ -1,13 +1,15 @@
 /*!
 Render Worker
-Background thread pool for rendering PDF pages
+Background thread pool for rendering PDF pages with scheduler integration
 */
 
 use crate::pdf_document::PdfDocument;
+use crate::render_scheduler::{RenderPriority, RenderScheduler};
 use anyhow::Result;
 use egui::ColorImage;
 use pdfium_render::prelude::PdfPageRenderRotation;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::mpsc;
 
 pub enum RenderRequest {
@@ -15,6 +17,8 @@ pub enum RenderRequest {
         page: usize,
         zoom: f32,
         rotation: u32,
+        priority: RenderPriority,
+        request_id: u64,
     },
 }
 
@@ -24,22 +28,27 @@ pub enum RenderResponse {
         zoom: f32,
         rotation: u32,
         image: Arc<ColorImage>,
+        request_id: u64,
+        render_time_ms: f32,
     },
     Error {
         page: usize,
         error: String,
+        request_id: u64,
     },
 }
 
 pub struct RenderWorker {
     tx: mpsc::UnboundedSender<RenderRequest>,
     rx: Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<RenderResponse>>>,
+    scheduler: RenderScheduler,
 }
 
 impl RenderWorker {
-    pub fn new(pdf_path: String) -> Self {
+    pub fn new(pdf_path: String, scheduler: RenderScheduler) -> Self {
         let (request_tx, mut request_rx) = mpsc::unbounded_channel::<RenderRequest>();
         let (response_tx, response_rx) = mpsc::unbounded_channel::<RenderResponse>();
+        let scheduler_clone = scheduler.clone();
 
         // Spawn a dedicated OS thread that owns the Tokio runtime.
         std::thread::spawn(move || {
@@ -56,24 +65,49 @@ impl RenderWorker {
 
                 while let Some(request) = request_rx.recv().await {
                     match request {
-                        RenderRequest::RenderPage { page, zoom, rotation } => {
+                        RenderRequest::RenderPage { page, zoom, rotation, priority: _, request_id } => {
+                            // Check if cancelled before starting
+                            if scheduler_clone.is_cancelled(request_id) {
+                                scheduler_clone.complete_request(request_id);
+                                continue;
+                            }
+                            
                             let doc = Arc::clone(&doc);
                             let response_tx = response_tx.clone();
+                            let scheduler = scheduler_clone.clone();
 
                             tokio::task::spawn_blocking(move || {
+                                let start = Instant::now();
+                                
+                                // Check cancellation again before expensive work
+                                if scheduler.is_cancelled(request_id) {
+                                    scheduler.complete_request(request_id);
+                                    return;
+                                }
+                                
                                 let result = render_page(&doc, page, zoom, rotation);
+                                let render_time_ms = start.elapsed().as_secs_f32() * 1000.0;
 
                                 let response = match result {
-                                    Ok(image) => RenderResponse::PageRendered {
-                                        page,
-                                        zoom,
-                                        rotation,
-                                        image: Arc::new(image),
-                                    },
-                                    Err(e) => RenderResponse::Error {
-                                        page,
-                                        error: e.to_string(),
-                                    },
+                                    Ok(image) => {
+                                        scheduler.complete_request(request_id);
+                                        RenderResponse::PageRendered {
+                                            page,
+                                            zoom,
+                                            rotation,
+                                            image: Arc::new(image),
+                                            request_id,
+                                            render_time_ms,
+                                        }
+                                    }
+                                    Err(e) => {
+                                        scheduler.fail_request(request_id);
+                                        RenderResponse::Error {
+                                            page,
+                                            error: e.to_string(),
+                                            request_id,
+                                        }
+                                    }
                                 };
 
                                 let _ = response_tx.send(response);
@@ -87,16 +121,35 @@ impl RenderWorker {
         Self {
             tx: request_tx,
             rx: Arc::new(tokio::sync::Mutex::new(response_rx)),
+            scheduler,
         }
     }
 
-    /// Request page render.
-    pub fn render_page(&self, page: usize, zoom: f32, rotation: u32) {
+    /// Request page render with priority.
+    pub fn render_page(&self, page: usize, zoom: f32, rotation: u32, priority: RenderPriority) -> u64 {
+        use crate::page_cache::CacheKey;
+        let key = CacheKey::new(page, zoom, rotation);
+        let request_id = self.scheduler.request(key, priority);
+        
         let _ = self.tx.send(RenderRequest::RenderPage {
             page,
             zoom,
             rotation,
+            priority,
+            request_id,
         });
+        
+        request_id
+    }
+
+    /// Cancel a specific render request
+    pub fn cancel_request(&self, request_id: u64) {
+        self.scheduler.cancel_request(request_id);
+    }
+    
+    /// Cancel all pending low-priority renders
+    pub fn cancel_below_priority(&self, min_priority: RenderPriority) {
+        self.scheduler.cancel_below_priority(min_priority);
     }
 
     /// Try to receive a rendered page (non-blocking).
@@ -106,6 +159,11 @@ impl RenderWorker {
         } else {
             None
         }
+    }
+    
+    /// Get scheduler reference
+    pub fn scheduler(&self) -> &RenderScheduler {
+        &self.scheduler
     }
 }
 

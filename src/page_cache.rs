@@ -1,6 +1,6 @@
 /*!
 Page Cache Manager
-LRU cache for rendered PDF pages
+LRU cache for rendered PDF pages with memory tracking
 */
 
 use egui::ColorImage;
@@ -27,6 +27,7 @@ impl CacheKey {
 
 pub struct PageCache {
     cache: Arc<Mutex<LruCache<CacheKey, Arc<ColorImage>>>>,
+    memory_usage_bytes: Arc<Mutex<usize>>,
 }
 
 impl PageCache {
@@ -35,6 +36,7 @@ impl PageCache {
             cache: Arc::new(Mutex::new(LruCache::new(
                 NonZeroUsize::new(capacity).unwrap(),
             ))),
+            memory_usage_bytes: Arc::new(Mutex::new(0)),
         }
     }
     
@@ -46,20 +48,43 @@ impl PageCache {
     
     /// Put page image in cache
     pub fn put(&self, key: CacheKey, image: Arc<ColorImage>) {
+        // Calculate image size in bytes (RGBA = 4 bytes per pixel)
+        let image_bytes = (image.width() * image.height() * 4) as usize;
+        
         let mut cache = self.cache.lock().unwrap();
+        
+        // If evicting an old entry, subtract its size
+        if let Some((_, old_image)) = cache.peek_lru() {
+            if cache.len() >= cache.cap().get() {
+                let old_bytes = (old_image.width() * old_image.height() * 4) as usize;
+                let mut mem_usage = self.memory_usage_bytes.lock().unwrap();
+                *mem_usage = mem_usage.saturating_sub(old_bytes);
+            }
+        }
+        
         cache.put(key, image);
+        
+        // Add new image size
+        let mut mem_usage = self.memory_usage_bytes.lock().unwrap();
+        *mem_usage += image_bytes;
     }
     
     /// Clear all cached pages
     pub fn clear(&self) {
         let mut cache = self.cache.lock().unwrap();
         cache.clear();
+        let mut mem_usage = self.memory_usage_bytes.lock().unwrap();
+        *mem_usage = 0;
     }
     
     /// Remove specific page from cache
     pub fn remove(&self, key: &CacheKey) {
         let mut cache = self.cache.lock().unwrap();
-        cache.pop(key);
+        if let Some(image) = cache.pop(key) {
+            let image_bytes = (image.width() * image.height() * 4) as usize;
+            let mut mem_usage = self.memory_usage_bytes.lock().unwrap();
+            *mem_usage = mem_usage.saturating_sub(image_bytes);
+        }
     }
     
     /// Get cache size
@@ -73,12 +98,19 @@ impl PageCache {
         let cache = self.cache.lock().unwrap();
         cache.is_empty()
     }
+    
+    /// Get memory usage in MB
+    pub fn memory_usage_mb(&self) -> f32 {
+        let mem_usage = self.memory_usage_bytes.lock().unwrap();
+        *mem_usage as f32 / (1024.0 * 1024.0)
+    }
 }
 
 impl Clone for PageCache {
     fn clone(&self) -> Self {
         Self {
             cache: Arc::clone(&self.cache),
+            memory_usage_bytes: Arc::clone(&self.memory_usage_bytes),
         }
     }
 }
