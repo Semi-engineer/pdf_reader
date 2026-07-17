@@ -38,13 +38,13 @@ impl ToolPalette {
                 section_header(ui, "ANNOTATE");
 
                 let tools: &[(&str, AnnotationType, &str)] = &[
-                    ("H  Highlight",  AnnotationType::Highlight,  "Drag to highlight"),
+                    ("🖍  Highlight",  AnnotationType::Highlight,  "Drag to highlight"),
                     ("▭  Rectangle",  AnnotationType::Rectangle,  "Drag to draw rectangle"),
-                    ("◯  Circle",     AnnotationType::Circle,     "Drag to draw ellipse"),
-                    ("—  Line",       AnnotationType::Line,       "Drag to draw line"),
-                    ("→  Arrow",      AnnotationType::Arrow,      "Drag to draw arrow"),
-                    ("P  Pen",        AnnotationType::Pen,        "Freehand draw"),
-                    ("T  Text",       AnnotationType::Text,       "Click to add text note"),
+                    ("○  Circle",     AnnotationType::Circle,     "Drag to draw ellipse"),
+                    ("╱  Line",       AnnotationType::Line,       "Drag to draw line"),
+                    ("➜  Arrow",      AnnotationType::Arrow,      "Drag to draw arrow"),
+                    ("✎  Pen",        AnnotationType::Pen,        "Freehand draw"),
+                    ("📝  Text",       AnnotationType::Text,       "Click to add text note"),
                 ];
 
                 for (label, tool_type, hint) in tools {

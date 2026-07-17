@@ -56,14 +56,12 @@ fn render_title_bar(ctx: &egui::Context, ui: &mut egui::Ui, doc_name: Option<&st
         ui.spacing_mut().item_spacing.x = 0.0;
 
         // ── Left: icon + title ──────────────────────────────────────────
-        ui.add_space(12.0);
+        ui.add_space(10.0);
 
-        ui.label(
-            egui::RichText::new("▣")
-                .size(15.0),
-        );
+        // Modern PDF icon
+        draw_pdf_icon(ui, Vec2::new(20.0, 20.0));
 
-        ui.add_space(6.0);
+        ui.add_space(8.0);
 
         ui.label(
             egui::RichText::new("DocLens")
@@ -96,7 +94,7 @@ fn render_title_bar(ctx: &egui::Context, ui: &mut egui::Ui, doc_name: Option<&st
             // Close — red hover
             if win_btn(
                 ui,
-                "✕",
+                "×",  // More modern × symbol
                 TITLE_BAR_HEIGHT,
                 Some(Color32::from_rgb(196, 43, 28)),
                 Some(Color32::WHITE),
@@ -106,15 +104,15 @@ fn render_title_bar(ctx: &egui::Context, ui: &mut egui::Ui, doc_name: Option<&st
                 close = true;
             }
 
-            // Maximize / Restore
+            // Maximize / Restore - using modern icons
             let is_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
-            let max_icon = if is_maximized { "❐" } else { "□" };
+            let max_icon = if is_maximized { "◱" } else { "◻" };  // More modern symbols
             if win_btn(ui, max_icon, TITLE_BAR_HEIGHT, None, None).clicked() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
             }
 
-            // Minimize
-            if win_btn(ui, "─", TITLE_BAR_HEIGHT, None, None).clicked() {
+            // Minimize - using horizontal line
+            if win_btn(ui, "−", TITLE_BAR_HEIGHT, None, None).clicked() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
             }
         });
@@ -156,4 +154,57 @@ fn win_btn(
     );
 
     resp
+}
+
+/// Draw a modern PDF document icon (SVG-style)
+fn draw_pdf_icon(ui: &mut egui::Ui, size: Vec2) {
+    let (rect, _resp) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let painter = ui.painter();
+    
+    let icon_color = Color32::from_rgb(108, 182, 255); // Accent blue
+    let fold_color = Color32::from_rgb(70, 130, 200);  // Darker blue
+    
+    let padding = size.x * 0.15;
+    let icon_rect = rect.shrink(padding);
+    
+    // Main document body
+    let points = vec![
+        icon_rect.left_top(),
+        egui::pos2(icon_rect.right() - size.x * 0.25, icon_rect.top()),
+        icon_rect.right_top() + egui::vec2(0.0, size.y * 0.25),
+        icon_rect.right_bottom(),
+        icon_rect.left_bottom(),
+    ];
+    
+    painter.add(egui::Shape::convex_polygon(
+        points,
+        icon_color,
+        Stroke::new(1.2, icon_color.gamma_multiply(0.8)),
+    ));
+    
+    // Folded corner
+    let fold_points = vec![
+        egui::pos2(icon_rect.right() - size.x * 0.25, icon_rect.top()),
+        egui::pos2(icon_rect.right() - size.x * 0.25, icon_rect.top() + size.y * 0.25),
+        icon_rect.right_top() + egui::vec2(0.0, size.y * 0.25),
+    ];
+    painter.add(egui::Shape::convex_polygon(
+        fold_points,
+        fold_color,
+        Stroke::NONE,
+    ));
+    
+    // PDF text lines (3 horizontal lines)
+    let text_color = Color32::WHITE;
+    let line_width = icon_rect.width() * 0.6;
+    let line_x = icon_rect.center().x - line_width * 0.5;
+    let start_y = icon_rect.center().y - size.y * 0.1;
+    
+    for i in 0..3 {
+        let y = start_y + (i as f32) * size.y * 0.15;
+        painter.line_segment(
+            [egui::pos2(line_x, y), egui::pos2(line_x + line_width, y)],
+            Stroke::new(1.0, text_color),
+        );
+    }
 }

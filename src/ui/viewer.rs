@@ -253,7 +253,10 @@ impl PdfViewer {
         page_origin: egui::Pos2,
         response: &egui::Response,
     ) {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+        // Only set text cursor when hovering over the page
+        if response.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+        }
 
         // Click anywhere (without drag) → clear selection
         if response.clicked() && !response.dragged() {
@@ -405,7 +408,9 @@ impl PdfViewer {
 
         match tool {
             AnnotationType::Text => {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                if response.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+                }
                 if response.clicked() {
                     if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
                         self.pending_text = Some(TextInput {
@@ -419,7 +424,9 @@ impl PdfViewer {
             }
 
             AnnotationType::Pen => {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                if response.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                }
                 if response.dragged() {
                     if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
                         self.current_stroke.push(pos);
@@ -453,7 +460,9 @@ impl PdfViewer {
             AnnotationType::Highlight
             | AnnotationType::Rectangle
             | AnnotationType::Circle => {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                if response.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                }
                 if response.drag_started() {
                     self.drag_start = ui.input(|i| i.pointer.hover_pos());
                 }
@@ -494,7 +503,9 @@ impl PdfViewer {
             }
 
             AnnotationType::Line | AnnotationType::Arrow => {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                if response.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                }
                 if response.drag_started() {
                     self.drag_start = ui.input(|i| i.pointer.hover_pos());
                 }

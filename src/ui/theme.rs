@@ -213,3 +213,85 @@ pub fn icon_toggle_btn(
         .frame(true);
     ui.add(btn).on_hover_text(tooltip)
 }
+
+// ─── SVG-style Icon Drawing Functions ─────────────────────────────────────────
+
+/// Draw a document/file icon
+pub fn draw_document_icon(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
+    let painter = ui.painter();
+    let padding = rect.width() * 0.15;
+    let icon_rect = rect.shrink(padding);
+    
+    // Document body with folded corner
+    let fold_size = rect.width() * 0.2;
+    let points = vec![
+        icon_rect.left_top(),
+        egui::pos2(icon_rect.right() - fold_size, icon_rect.top()),
+        icon_rect.right_top() + egui::vec2(0.0, fold_size),
+        icon_rect.right_bottom(),
+        icon_rect.left_bottom(),
+    ];
+    
+    painter.add(egui::Shape::convex_polygon(
+        points,
+        color,
+        egui::Stroke::new(1.0, color.gamma_multiply(0.7)),
+    ));
+    
+    // Folded corner
+    let fold_points = vec![
+        egui::pos2(icon_rect.right() - fold_size, icon_rect.top()),
+        egui::pos2(icon_rect.right() - fold_size, icon_rect.top() + fold_size),
+        icon_rect.right_top() + egui::vec2(0.0, fold_size),
+    ];
+    painter.add(egui::Shape::convex_polygon(
+        fold_points,
+        color.gamma_multiply(0.6),
+        egui::Stroke::NONE,
+    ));
+}
+
+/// Draw a search/magnifying glass icon
+pub fn draw_search_icon(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
+    let painter = ui.painter();
+    let center = rect.center() - egui::vec2(rect.width() * 0.1, rect.height() * 0.1);
+    let radius = rect.width() * 0.28;
+    
+    // Circle
+    painter.circle_stroke(center, radius, egui::Stroke::new(1.8, color));
+    
+    // Handle
+    let handle_start = center + egui::vec2(radius * 0.7, radius * 0.7);
+    let handle_end = handle_start + egui::vec2(radius * 0.6, radius * 0.6);
+    painter.line_segment([handle_start, handle_end], egui::Stroke::new(1.8, color));
+}
+
+/// Draw a folder icon
+pub fn draw_folder_icon(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
+    let painter = ui.painter();
+    let padding = rect.width() * 0.15;
+    let icon_rect = rect.shrink(padding);
+    
+    let tab_width = icon_rect.width() * 0.35;
+    let tab_height = icon_rect.height() * 0.2;
+    
+    // Folder body
+    painter.rect_filled(
+        egui::Rect::from_min_max(
+            icon_rect.left_top() + egui::vec2(0.0, tab_height),
+            icon_rect.right_bottom(),
+        ),
+        2.0,
+        color,
+    );
+    
+    // Folder tab
+    painter.rect_filled(
+        egui::Rect::from_min_size(
+            icon_rect.left_top(),
+            egui::vec2(tab_width, tab_height),
+        ),
+        2.0,
+        color.gamma_multiply(0.8),
+    );
+}

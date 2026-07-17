@@ -46,7 +46,7 @@ impl Toolbar {
                     // ── Open ──────────────────────────────────────────────
                     let open_r = ui.add(
                         egui::Button::new(
-                            RichText::new("▤").size(15.0)
+                            RichText::new("📁").size(14.0)  // Modern folder icon
                         )
                         .min_size(Vec2::new(32.0, 28.0))
                         .fill(BG_ELEVATED)
@@ -84,7 +84,7 @@ impl Toolbar {
 
                     // ── Zoom ──────────────────────────────────────────────
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if theme::icon_btn(ui, "−", "Zoom out  (Ctrl+−)").clicked() {
+                        if theme::icon_btn(ui, "🔍−", "Zoom out  (Ctrl+−)").clicked() {
                             app.zoom_out();
                         }
 
@@ -98,13 +98,13 @@ impl Toolbar {
                             app.set_zoom(zoom);
                         }
 
-                        if theme::icon_btn(ui, "+", "Zoom in  (Ctrl+=)").clicked() {
+                        if theme::icon_btn(ui, "🔍+", "Zoom in  (Ctrl+=)").clicked() {
                             app.zoom_in();
                         }
 
                         let r = ui.add(
-                            egui::Button::new(RichText::new("1:1").size(11.5).color(FG_SECONDARY))
-                                .min_size(Vec2::new(28.0, 24.0))
+                            egui::Button::new(RichText::new("1∶1").size(11.5).color(FG_SECONDARY))
+                                .min_size(Vec2::new(30.0, 24.0))
                                 .fill(Color32::TRANSPARENT)
                         ).on_hover_text("Reset zoom  (Ctrl+0)");
                         if r.clicked() { app.set_zoom(100.0); }
@@ -114,8 +114,8 @@ impl Toolbar {
 
                     // ── Rotation ──────────────────────────────────────────
                     ui.add_enabled_ui(has_doc, |ui| {
-                        if theme::icon_btn(ui, "↶", "Rotate left").clicked()  { app.rotate_left(); }
-                        if theme::icon_btn(ui, "↷", "Rotate right").clicked() { app.rotate_right(); }
+                        if theme::icon_btn(ui, "↺", "Rotate left").clicked()  { app.rotate_left(); }
+                        if theme::icon_btn(ui, "↻", "Rotate right").clicked() { app.rotate_right(); }
                     });
 
                     divider(ui);
@@ -125,7 +125,7 @@ impl Toolbar {
                         // Text input with inner icon
                         let te = egui::TextEdit::singleline(&mut self.search_query)
                             .desired_width(150.0)
-                            .hint_text("/ Search...")
+                            .hint_text("🔍 Search...")
                             .font(egui::FontId::proportional(13.0));
                         let te_r = ui.add_sized([150.0, 24.0], te);
 
@@ -153,17 +153,17 @@ impl Toolbar {
                                 RichText::new(format!("{idx}/{count}"))
                                     .color(FG_ACCENT).size(12.0)
                             );
-                            if theme::icon_btn(ui, "◀", "Previous result").clicked() {
+                            if theme::icon_btn(ui, "⌃", "Previous result").clicked() {
                                 if let Some(r) = app.search_manager.prev_result() {
                                     let p = r.page; app.goto_page(p);
                                 }
                             }
-                            if theme::icon_btn(ui, "▶", "Next result").clicked() {
+                            if theme::icon_btn(ui, "⌄", "Next result").clicked() {
                                 if let Some(r) = app.search_manager.next_result() {
                                     let p = r.page; app.goto_page(p);
                                 }
                             }
-                            if theme::icon_btn(ui, "✕", "Clear search").clicked() {
+                            if theme::icon_btn(ui, "×", "Clear search").clicked() {
                                 self.search_query.clear();
                                 app.search_manager.clear();
                             }
@@ -174,10 +174,10 @@ impl Toolbar {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 3.0;
 
-                        if theme::icon_toggle_btn(ui, "✦", "Annotation tools", app.tool_palette_visible).clicked() {
+                        if theme::icon_toggle_btn(ui, "🎨", "Annotation tools", app.tool_palette_visible).clicked() {
                             app.tool_palette_visible = !app.tool_palette_visible;
                         }
-                        if theme::icon_toggle_btn(ui, "▣", "Page thumbnails", app.sidebar_visible).clicked() {
+                        if theme::icon_toggle_btn(ui, "☰", "Page thumbnails", app.sidebar_visible).clicked() {
                             app.sidebar_visible = !app.sidebar_visible;
                         }
                     });
