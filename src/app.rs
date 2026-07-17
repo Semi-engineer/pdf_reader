@@ -11,6 +11,7 @@ use crate::render_worker::{RenderResponse, RenderWorker};
 use crate::search::{SearchManager, SearchResult};
 use crate::thumbnail_manager::ThumbnailManager;
 use crate::ui::{PdfViewer, Sidebar, StatusBar, ToolPalette, Toolbar};
+use crate::ui::theme::BG_BASE;
 use eframe::egui;
 use std::sync::Arc;
 
@@ -395,13 +396,17 @@ impl eframe::App for DocLensApp {
             return;
         }
 
-        egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
+        egui::TopBottomPanel::top("toolbar")
+            .frame(egui::Frame::NONE)
+            .show(ctx, |ui| {
             let mut toolbar = std::mem::take(&mut self.toolbar);
             toolbar.show(ui, self);
             self.toolbar = toolbar;
         });
 
-        egui::TopBottomPanel::bottom("statusbar").show(ctx, |ui| {
+        egui::TopBottomPanel::bottom("statusbar")
+            .frame(egui::Frame::NONE)
+            .show(ctx, |ui| {
             let mut statusbar = std::mem::take(&mut self.statusbar);
             statusbar.show(ui, self);
             self.statusbar = statusbar;
@@ -411,6 +416,7 @@ impl eframe::App for DocLensApp {
             egui::SidePanel::left("sidebar")
                 .min_width(140.0)
                 .default_width(160.0)
+                .frame(egui::Frame::NONE)
                 .show(ctx, |ui| {
                     let mut sidebar = std::mem::take(&mut self.sidebar);
                     sidebar.show(ui, self);
@@ -422,6 +428,7 @@ impl eframe::App for DocLensApp {
             egui::SidePanel::right("tool_palette")
                 .exact_width(132.0)
                 .resizable(false)
+                .frame(egui::Frame::NONE)
                 .show(ctx, |ui| {
                     let mut tool_palette = std::mem::take(&mut self.tool_palette);
                     tool_palette.show(ui, self);
@@ -429,11 +436,18 @@ impl eframe::App for DocLensApp {
                 });
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let mut viewer = std::mem::take(&mut self.viewer);
-            viewer.show(ui, self);
-            self.viewer = viewer;
-        });
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new()
+                .fill(BG_BASE)
+                .inner_margin(egui::Margin::same(0)))
+            .show(ctx, |ui| {
+                // Set the full viewer area background to dark
+                ui.style_mut().visuals.extreme_bg_color = BG_BASE;
+                
+                let mut viewer = std::mem::take(&mut self.viewer);
+                viewer.show(ui, self);
+                self.viewer = viewer;
+            });
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

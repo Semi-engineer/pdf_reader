@@ -6,33 +6,34 @@ Centralised colour palette and style setup.
 use eframe::egui::{self, Color32, FontId, Stroke, Vec2, Visuals};
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
+// Modern dark theme with blue-purple accent
 
-pub const BG_BASE: Color32        = Color32::from_rgb(22,  22,  28);   // Window / panel bg
-pub const BG_SURFACE: Color32     = Color32::from_rgb(30,  30,  38);   // Toolbar / sidebar
-pub const BG_ELEVATED: Color32    = Color32::from_rgb(40,  40,  50);   // Buttons, inputs
-pub const BG_HOVER: Color32       = Color32::from_rgb(55,  55,  68);   // Button hover
-pub const BG_ACTIVE: Color32      = Color32::from_rgb(70, 130, 220);   // Selected / active
+pub const BG_BASE: Color32        = Color32::from_rgb(18,  18,  24);   // Window / panel bg - darker for better contrast
+pub const BG_SURFACE: Color32     = Color32::from_rgb(28,  28,  36);   // Toolbar / sidebar - subtle elevation
+pub const BG_ELEVATED: Color32    = Color32::from_rgb(38,  38,  48);   // Buttons, inputs - clear hierarchy
+pub const BG_HOVER: Color32       = Color32::from_rgb(52,  52,  68);   // Button hover - noticeable but smooth
+pub const BG_ACTIVE: Color32      = Color32::from_rgb(88, 112, 214);   // Selected / active - vibrant blue-purple
 
 // from_rgba_unmultiplied is not const in egui 0.31 — use a lazy static
 pub static BG_ACTIVE_DIM: std::sync::LazyLock<Color32> =
-    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(70, 130, 220, 40));
+    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(88, 112, 214, 50));
 
-pub const FG_PRIMARY: Color32     = Color32::from_rgb(230, 230, 240);  // Normal text
-pub const FG_SECONDARY: Color32   = Color32::from_rgb(160, 160, 180);  // Dimmed text
-pub const FG_ACCENT: Color32      = Color32::from_rgb(100, 170, 255);  // Accent / links
-pub const FG_SUCCESS: Color32     = Color32::from_rgb(80,  200, 120);
-pub const FG_WARNING: Color32     = Color32::from_rgb(255, 195,  60);
-pub const FG_ERROR: Color32       = Color32::from_rgb(255,  90,  80);
+pub const FG_PRIMARY: Color32     = Color32::from_rgb(240, 240, 248);  // Normal text - crisp white
+pub const FG_SECONDARY: Color32   = Color32::from_rgb(156, 163, 185);  // Dimmed text - better readability
+pub const FG_ACCENT: Color32      = Color32::from_rgb(108, 182, 255);  // Accent / links - bright blue
+pub const FG_SUCCESS: Color32     = Color32::from_rgb(75,  210, 143);  // Success - fresh green
+pub const FG_WARNING: Color32     = Color32::from_rgb(255, 188,  66);  // Warning - warm amber
+pub const FG_ERROR: Color32       = Color32::from_rgb(255,  85,  85);  // Error - clear red
 
-pub const BORDER: Color32         = Color32::from_rgb(60,  60,  75);
-pub const BORDER_FOCUS: Color32   = Color32::from_rgb(100, 160, 255);
+pub const BORDER: Color32         = Color32::from_rgb(52,  52,  68);   // Borders - subtle separation
+pub const BORDER_FOCUS: Color32   = Color32::from_rgb(108, 182, 255);  // Focus - matches accent
 
 pub static SELECTION_BG: std::sync::LazyLock<Color32> =
-    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(51, 153, 255, 70));
+    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(88, 112, 214, 85));
 pub static SEARCH_BG: std::sync::LazyLock<Color32> =
-    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(255, 220, 0, 110));
+    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(255, 215, 0, 120));
 pub static SEARCH_CURRENT: std::sync::LazyLock<Color32> =
-    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(255, 140, 0, 180));
+    std::sync::LazyLock::new(|| Color32::from_rgba_unmultiplied(255, 150, 30, 200));
 
 // ─── Apply theme ─────────────────────────────────────────────────────────────
 
@@ -44,11 +45,14 @@ pub fn apply(ctx: &egui::Context) {
     visuals.window_stroke = Stroke::new(1.0, BORDER);
     visuals.window_corner_radius = egui::CornerRadius::same(6);
 
-    // Panel
+    // Panel - all panels use surface color
     visuals.panel_fill = BG_SURFACE;
 
-    // Extreme (scroll area etc.)
+    // Extreme (scroll area etc.) - use base for backgrounds
     visuals.extreme_bg_color = BG_BASE;
+    
+    // Faint background (for central panel and viewer area)
+    visuals.faint_bg_color = BG_BASE;
 
     // Widgets — normal state
     visuals.widgets.noninteractive.bg_fill    = BG_ELEVATED;
